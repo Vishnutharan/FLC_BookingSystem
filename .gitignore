@@ -1,0 +1,20 @@
+# Compiled class files
+target/
+*.class
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+nbproject/private/
+
+# Maven
+.mvn/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Package files
+*.jar
+!target/FLC_BookingSystem.jar
