@@ -31,103 +31,101 @@ public class ChangeBookingPanel extends JPanel {
     private JTable availableLessonsTable;
     private AvailableLessonTableModel availableModel;
 
-    /**
-     * Constructs the ChangeBookingPanel.
-     *
-     * @param bookingSystem the booking system instance
-     */
     public ChangeBookingPanel(BookingSystem bookingSystem) {
         this.bookingSystem = bookingSystem;
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout());
+        setBackground(FLCTheme.CONTENT_BG);
+        setOpaque(false);
         buildUI();
     }
 
-    /**
-     * Builds the UI components.
-     */
     private void buildUI() {
-        // Title
-        JLabel title = new JLabel("Change a Booking", SwingConstants.CENTER);
-        title.setFont(new Font("SansSerif", Font.BOLD, 18));
+        JPanel content = UIHelper.createContentPanel();
 
-        // Top control panel
-        JPanel topControl = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        topControl.setBorder(BorderFactory.createTitledBorder("Select Member"));
+        // ─── Top: Member Selector ────────────────────────────────
+        JPanel topCard = FLCTheme.createCardPanel();
+        topCard.setLayout(new FlowLayout(FlowLayout.LEFT, 12, 5));
         memberCombo = new JComboBox<>();
         for (Member m : bookingSystem.getMembers())
             memberCombo.addItem(m);
-        topControl.add(new JLabel("Member:"));
-        topControl.add(memberCombo);
-        JButton loadBtn = new JButton("Load My Bookings");
+        FLCTheme.styleComboBox(memberCombo);
+        topCard.add(FLCTheme.createFieldLabel("Member:"));
+        topCard.add(memberCombo);
+        JButton loadBtn = FLCTheme.createPrimaryButton("\uD83D\uDD04  Load My Bookings");
         loadBtn.addActionListener(e -> loadCurrentBookings());
-        topControl.add(loadBtn);
+        topCard.add(loadBtn);
+        content.add(topCard, BorderLayout.NORTH);
 
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(title, BorderLayout.NORTH);
-        topPanel.add(topControl, BorderLayout.CENTER);
-        add(topPanel, BorderLayout.NORTH);
-
-        // Split pane - current bookings (top) and available lessons (bottom)
+        // ─── Center: Split ───────────────────────────────────────
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         splitPane.setResizeWeight(0.4);
+        splitPane.setBorder(null);
+        splitPane.setDividerSize(8);
 
-        // Current bookings
-        JPanel currentPanel = new JPanel(new BorderLayout());
-        currentPanel.setBorder(BorderFactory.createTitledBorder("Current Bookings (select the one to change FROM)"));
+        // Current bookings card
+        JPanel currentCard = FLCTheme.createCardPanel();
+        currentCard.setLayout(new BorderLayout(0, 8));
+        currentCard.add(
+                FLCTheme.createSectionHeader("\uD83D\uDCCB", "Current Bookings  \u2014  Select the one to change FROM"),
+                BorderLayout.NORTH);
         currentBookingsModel = new BookingTableModel();
         currentBookingsTable = new JTable(currentBookingsModel);
         currentBookingsTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        currentBookingsTable.setRowHeight(25);
-        currentPanel.add(new JScrollPane(currentBookingsTable), BorderLayout.CENTER);
-        splitPane.setTopComponent(currentPanel);
+        currentCard.add(FLCTheme.createStyledScrollPane(currentBookingsTable), BorderLayout.CENTER);
+        splitPane.setTopComponent(currentCard);
 
-        // New lesson finder
-        JPanel newPanel = new JPanel(new BorderLayout(5, 5));
-        newPanel.setBorder(BorderFactory.createTitledBorder("Find New Lesson (select the one to change TO)"));
+        // New lesson finder card
+        JPanel newCard = FLCTheme.createCardPanel();
+        newCard.setLayout(new BorderLayout(0, 8));
+        newCard.add(
+                FLCTheme.createSectionHeader("\uD83D\uDD0D", "Find New Lesson  \u2014  Select the one to change TO"),
+                BorderLayout.NORTH);
 
-        JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        filterPanel.setOpaque(false);
         newWeekCombo = new JComboBox<>();
         for (int i = 1; i <= 8; i++)
             newWeekCombo.addItem(i);
+        FLCTheme.styleComboBox(newWeekCombo);
         newDayCombo = new JComboBox<>(DayOfWeek.values());
+        FLCTheme.styleComboBox(newDayCombo);
         newTimeCombo = new JComboBox<>();
         newTimeCombo.addItem("All");
         for (TimeSlot ts : TimeSlot.values())
             newTimeCombo.addItem(ts.getDisplayName());
+        FLCTheme.styleComboBox(newTimeCombo);
 
-        filterPanel.add(new JLabel("Week:"));
+        filterPanel.add(FLCTheme.createFieldLabel("Week:"));
         filterPanel.add(newWeekCombo);
-        filterPanel.add(new JLabel("Day:"));
+        filterPanel.add(FLCTheme.createFieldLabel("Day:"));
         filterPanel.add(newDayCombo);
-        filterPanel.add(new JLabel("Time:"));
+        filterPanel.add(FLCTheme.createFieldLabel("Time:"));
         filterPanel.add(newTimeCombo);
-        JButton findBtn = new JButton("Find Available Lessons");
+        JButton findBtn = FLCTheme.createPrimaryButton("Find Available");
         findBtn.addActionListener(e -> findAvailableLessons());
         filterPanel.add(findBtn);
-        newPanel.add(filterPanel, BorderLayout.NORTH);
+
+        JPanel newContent = new JPanel(new BorderLayout(0, 8));
+        newContent.setOpaque(false);
+        newContent.add(filterPanel, BorderLayout.NORTH);
 
         availableModel = new AvailableLessonTableModel();
         availableLessonsTable = new JTable(availableModel);
         availableLessonsTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        availableLessonsTable.setRowHeight(25);
-        newPanel.add(new JScrollPane(availableLessonsTable), BorderLayout.CENTER);
-        splitPane.setBottomComponent(newPanel);
+        newContent.add(FLCTheme.createStyledScrollPane(availableLessonsTable), BorderLayout.CENTER);
+        newCard.add(newContent, BorderLayout.CENTER);
+        splitPane.setBottomComponent(newCard);
 
-        add(splitPane, BorderLayout.CENTER);
+        content.add(splitPane, BorderLayout.CENTER);
 
-        // Confirm button
-        JButton confirmBtn = new JButton("Confirm Change");
-        confirmBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
+        // ─── Bottom: Confirm Button ──────────────────────────────
+        JButton confirmBtn = FLCTheme.createPrimaryButton("\u2714  Confirm Change");
+        content.add(UIHelper.createActionPanel(confirmBtn), BorderLayout.SOUTH);
         confirmBtn.addActionListener(e -> confirmChange());
-        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        bottomPanel.add(confirmBtn);
-        add(bottomPanel, BorderLayout.SOUTH);
+
+        add(content, BorderLayout.CENTER);
     }
 
-    /**
-     * Loads the selected member's current bookings.
-     */
     private void loadCurrentBookings() {
         Member member = (Member) memberCombo.getSelectedItem();
         if (member == null)
@@ -135,19 +133,14 @@ public class ChangeBookingPanel extends JPanel {
         currentBookingsModel.setLessons(new ArrayList<>(member.getBookedLessons()));
     }
 
-    /**
-     * Finds available lessons based on selected filters.
-     */
     private void findAvailableLessons() {
         int week = (Integer) newWeekCombo.getSelectedItem();
         DayOfWeek day = (DayOfWeek) newDayCombo.getSelectedItem();
         String timeFilter = (String) newTimeCombo.getSelectedItem();
 
         List<Lesson> lessons = bookingSystem.getTimetable()
-                .getLessonsByWeekAndDay(week, day)
-                .stream()
-                .filter(Lesson::isAvailable)
-                .collect(Collectors.toList());
+                .getLessonsByWeekAndDay(week, day).stream()
+                .filter(Lesson::isAvailable).collect(Collectors.toList());
 
         if (!"All".equals(timeFilter)) {
             lessons = lessons.stream()
@@ -157,9 +150,6 @@ public class ChangeBookingPanel extends JPanel {
         availableModel.setLessons(lessons);
     }
 
-    /**
-     * Confirms the booking change.
-     */
     private void confirmChange() {
         Member member = (Member) memberCombo.getSelectedItem();
         if (member == null) {
@@ -212,13 +202,8 @@ public class ChangeBookingPanel extends JPanel {
         }
     }
 
-    /**
-     * Table model for member's current bookings.
-     */
     private static class BookingTableModel extends AbstractTableModel {
-        private static final String[] COLUMNS = {
-                "Lesson ID", "Exercise", "Day", "Time", "Week", "Booked"
-        };
+        private static final String[] COLUMNS = { "Lesson ID", "Exercise", "Day", "Time", "Week", "Booked" };
         private List<Lesson> lessons = new ArrayList<>();
 
         @Override
@@ -272,13 +257,9 @@ public class ChangeBookingPanel extends JPanel {
         }
     }
 
-    /**
-     * Table model for available lessons.
-     */
     private static class AvailableLessonTableModel extends AbstractTableModel {
-        private static final String[] COLUMNS = {
-                "Lesson ID", "Exercise", "Day", "Time", "Week", "Spaces Left", "Price"
-        };
+        private static final String[] COLUMNS = { "Lesson ID", "Exercise", "Day", "Time", "Week", "Spaces Left",
+                "Price" };
         private final DecimalFormat df = new DecimalFormat("0.00");
         private List<Lesson> lessons = new ArrayList<>();
 
@@ -319,7 +300,7 @@ public class ChangeBookingPanel extends JPanel {
                 case 5:
                     return l.getAvailableSpaces();
                 case 6:
-                    return "£" + df.format(l.getExerciseType().getPrice());
+                    return "\u00A3" + df.format(l.getExerciseType().getPrice());
                 default:
                     return "";
             }

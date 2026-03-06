@@ -8,22 +8,23 @@ import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
- * Panel for cancelling an existing booking. Shows a member's current bookings
- * and allows cancellation with a confirmation dialog.
+ * Panel for managing lesson attendance. Allows marking booked lessons as
+ * attended.
  *
  * @author FLC Development Team
  */
-public class CancelBookingPanel extends JPanel {
+public class AttendancePanel extends JPanel {
 
     private final BookingSystem bookingSystem;
     private JComboBox<Member> memberCombo;
-    private JTable bookingsTable;
-    private CancelTableModel tableModel;
+    private JTable attendanceTable;
+    private AttendanceTableModel tableModel;
     private JLabel statusLabel;
 
-    public CancelBookingPanel(BookingSystem bookingSystem) {
+    public AttendancePanel(BookingSystem bookingSystem) {
         this.bookingSystem = bookingSystem;
         setLayout(new BorderLayout());
         setBackground(FLCTheme.CONTENT_BG);
@@ -43,31 +44,31 @@ public class CancelBookingPanel extends JPanel {
         FLCTheme.styleComboBox(memberCombo);
         topCard.add(FLCTheme.createFieldLabel("Member:"));
         topCard.add(memberCombo);
-        JButton loadBtn = FLCTheme.createPrimaryButton("\uD83D\uDD04  Load My Bookings");
+        JButton loadBtn = FLCTheme.createPrimaryButton("\uD83D\uDCE5  Load My Bookings");
         loadBtn.addActionListener(e -> loadBookings());
         topCard.add(loadBtn);
         content.add(topCard, BorderLayout.NORTH);
 
-        // ─── Center: Bookings Table ──────────────────────────────
+        // ─── Center: Attendance Table ─────────────────────────────
         JPanel tableCard = FLCTheme.createCardPanel();
         tableCard.setLayout(new BorderLayout(0, 10));
-        tableCard.add(FLCTheme.createSectionHeader("\uD83D\uDCCB", "Your Bookings"), BorderLayout.NORTH);
+        tableCard.add(FLCTheme.createSectionHeader("\u2705", "Record Attendance"), BorderLayout.NORTH);
 
-        tableModel = new CancelTableModel();
-        bookingsTable = new JTable(tableModel);
-        bookingsTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        tableCard.add(FLCTheme.createStyledScrollPane(bookingsTable), BorderLayout.CENTER);
+        tableModel = new AttendanceTableModel();
+        attendanceTable = new JTable(tableModel);
+        attendanceTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        tableCard.add(FLCTheme.createStyledScrollPane(attendanceTable), BorderLayout.CENTER);
 
         // Bottom bar
         JPanel bottomBar = new JPanel(new BorderLayout(10, 0));
         bottomBar.setOpaque(false);
 
-        statusLabel = FLCTheme.createStatusLabel("Select a member and load their bookings.");
+        statusLabel = FLCTheme.createStatusLabel("Select a member to manage their attendance.");
         bottomBar.add(statusLabel, BorderLayout.CENTER);
 
-        JButton cancelBtn = FLCTheme.createDangerButton("\u274C  Cancel Selected Booking");
-        cancelBtn.addActionListener(e -> cancelSelectedBooking());
-        bottomBar.add(cancelBtn, BorderLayout.EAST);
+        JButton attendBtn = FLCTheme.createSuccessButton("\u2714  Mark as Attended");
+        attendBtn.addActionListener(e -> markAsAttended());
+        bottomBar.add(attendBtn, BorderLayout.EAST);
 
         tableCard.add(bottomBar, BorderLayout.SOUTH);
         content.add(tableCard, BorderLayout.CENTER);
@@ -79,48 +80,42 @@ public class CancelBookingPanel extends JPanel {
         Member member = (Member) memberCombo.getSelectedItem();
         if (member == null)
             return;
-        tableModel.setLessons(new ArrayList<>(member.getBookedLessons()));
-        statusLabel.setText(member.getName() + " has " + member.getBookedLessons().size() + " booking(s).");
+
+        List<Lesson> activeBookings = member.getBookedLessons().stream()
+                .filter(l -> member.getBookingStatus(l) == BookingStatus.BOOKED)
+                .collect(Collectors.toList());
+
+        tableModel.setLessons(activeBookings, member);
+        statusLabel.setText(member.getName() + " has " + activeBookings.size() + " pending lesson(s).");
     }
 
-    private void cancelSelectedBooking() {
+    private void markAsAttended() {
         Member member = (Member) memberCombo.getSelectedItem();
-        if (member == null) {
-            JOptionPane.showMessageDialog(this, "Please select a member.",
-                    "Validation Error", JOptionPane.WARNING_MESSAGE);
+        if (member == null)
             return;
-        }
 
-        int selectedRow = bookingsTable.getSelectedRow();
+        int selectedRow = attendanceTable.getSelectedRow();
         if (selectedRow < 0) {
-            JOptionPane.showMessageDialog(this, "Please select a booking to cancel.",
-                    "Validation Error", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Please select a lesson to mark as attended.",
+                    "Selection Required", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        int modelRow = bookingsTable.convertRowIndexToModel(selectedRow);
+        int modelRow = attendanceTable.convertRowIndexToModel(selectedRow);
         Lesson lesson = tableModel.getLessonAt(modelRow);
 
-        int confirm = JOptionPane.showConfirmDialog(this,
-                String.format("Are you sure you want to cancel your booking for:\n%s\n(%s - %s %s, Week %d)?",
-                        lesson.getLessonId(),
-                        lesson.getExerciseType().getDisplayName(),
-                        lesson.getDay().getDisplayName(),
-                        lesson.getTimeSlot().getDisplayName(),
-                        lesson.getWeekNumber()),
-                "Confirm Cancellation", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        bookingSystem.attendLesson(member, lesson);
+        JOptionPane.showMessageDialog(this,
+                "Successfully marked " + lesson.getLessonId() + " as Attended for " + member.getName() + ".",
+                "Attendance Recorded", JOptionPane.INFORMATION_MESSAGE);
 
-        if (confirm == JOptionPane.YES_OPTION) {
-            bookingSystem.cancelBooking(member, lesson);
-            JOptionPane.showMessageDialog(this, "Booking cancelled successfully.",
-                    "Cancellation Successful", JOptionPane.INFORMATION_MESSAGE);
-            loadBookings();
-        }
+        loadBookings(); // refresh
     }
 
-    private static class CancelTableModel extends AbstractTableModel {
-        private static final String[] COLUMNS = { "Lesson ID", "Exercise", "Day", "Time Slot", "Week", "Booked" };
+    private static class AttendanceTableModel extends AbstractTableModel {
+        private static final String[] COLUMNS = { "Lesson ID", "Exercise", "Day", "Time Slot", "Week", "Status" };
         private List<Lesson> lessons = new ArrayList<>();
+        private Member currentMember;
 
         @Override
         public int getRowCount() {
@@ -138,13 +133,9 @@ public class CancelBookingPanel extends JPanel {
         }
 
         @Override
-        public boolean isCellEditable(int r, int c) {
-            return false;
-        }
-
-        @Override
         public Object getValueAt(int row, int col) {
             Lesson l = lessons.get(row);
+            Member member = currentMember;
             switch (col) {
                 case 0:
                     return l.getLessonId();
@@ -157,14 +148,15 @@ public class CancelBookingPanel extends JPanel {
                 case 4:
                     return l.getWeekNumber();
                 case 5:
-                    return l.getBookedMembers().size() + "/4";
+                    return member != null ? member.getBookingStatus(l) : "N/A";
                 default:
                     return "";
             }
         }
 
-        public void setLessons(List<Lesson> lessons) {
+        public void setLessons(List<Lesson> lessons, Member member) {
             this.lessons = lessons;
+            this.currentMember = member;
             fireTableDataChanged();
         }
 

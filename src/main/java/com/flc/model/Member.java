@@ -3,7 +3,9 @@ package com.flc.model;
 import com.flc.exception.LessonFullException;
 import com.flc.exception.TimeConflictException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Represents a member registered at the Furzefield Leisure Centre.
@@ -18,7 +20,7 @@ public class Member {
     private String memberId;
     private String name;
     private String email;
-    private List<Lesson> bookedLessons;
+    private List<Booking> bookings;
 
     /**
      * Constructs a new Member.
@@ -31,7 +33,7 @@ public class Member {
         this.memberId = memberId;
         this.name = name;
         this.email = email;
-        this.bookedLessons = new ArrayList<>();
+        this.bookings = new ArrayList<>();
     }
 
     /**
@@ -44,13 +46,23 @@ public class Member {
      * @throws LessonFullException   if the lesson is at capacity
      */
     public void bookLesson(Lesson lesson) throws TimeConflictException, LessonFullException {
+        if (lesson == null) {
+            throw new IllegalArgumentException("Lesson cannot be null.");
+        }
+
+        if (hasActiveBookingForLesson(lesson)) {
+            throw new TimeConflictException("Member " + name + " is already booked into lesson "
+                    + lesson.getLessonId() + ".");
+        }
+
         if (hasTimeConflict(lesson)) {
             throw new TimeConflictException("Member " + name + " already has a booking on "
                     + lesson.getDay().getDisplayName() + " " + lesson.getTimeSlot().getDisplayName()
                     + " in Week " + lesson.getWeekNumber() + ".");
         }
+
         lesson.bookMember(this);
-        bookedLessons.add(lesson);
+        bookings.add(new Booking(this, lesson));
     }
 
     /**
@@ -59,8 +71,13 @@ public class Member {
      * @param lesson the lesson to cancel
      */
     public void cancelBooking(Lesson lesson) {
+        Booking booking = findActiveBooking(lesson);
+        if (booking == null) {
+            return;
+        }
+
+        booking.cancel();
         lesson.removeMember(this);
-        bookedLessons.remove(lesson);
     }
 
     /**
@@ -74,31 +91,79 @@ public class Member {
      */
     public void changeBooking(Lesson oldLesson, Lesson newLesson)
             throws LessonFullException, TimeConflictException {
-        // Cancel old booking first
-        cancelBooking(oldLesson);
+        if (oldLesson == null || newLesson == null) {
+            throw new IllegalArgumentException("Old lesson and new lesson must both be provided.");
+        }
+
+        if (oldLesson.equals(newLesson)) {
+            throw new IllegalArgumentException("Cannot change booking to the same lesson.");
+        }
+
+        Booking oldBooking = findActiveBooking(oldLesson);
+        if (oldBooking == null) {
+            throw new IllegalStateException("Cannot change booking. Member " + name
+                    + " is not currently booked into lesson " + oldLesson.getLessonId() + ".");
+        }
+
+        if (oldBooking.getStatus() == BookingStatus.ATTENDED) {
+            throw new IllegalStateException("Cannot change an attended booking.");
+        }
+
+        oldBooking.cancel();
+        oldLesson.removeMember(this);
+
         try {
-            // Attempt to book new lesson
-            bookLesson(newLesson);
+            if (hasTimeConflictExcluding(newLesson, oldLesson)) {
+                throw new TimeConflictException("Member " + name + " already has a booking on "
+                        + newLesson.getDay().getDisplayName() + " " + newLesson.getTimeSlot().getDisplayName()
+                        + " in Week " + newLesson.getWeekNumber() + ".");
+            }
+            newLesson.bookMember(this);
+            bookings.add(new Booking(this, newLesson));
         } catch (LessonFullException | TimeConflictException e) {
-            // Rollback: re-book into old lesson if new booking fails
+            // Rollback to preserve original booking state
             try {
-                lesson_reBook(oldLesson);
+                oldLesson.bookMember(this);
+                oldBooking.setStatus(BookingStatus.BOOKED);
             } catch (LessonFullException ex) {
-                // Should not happen since we just cancelled
+                throw new IllegalStateException("Rollback failed: " + ex.getMessage(), ex);
             }
             throw e;
         }
     }
 
     /**
-     * Re-books a lesson without conflict checking (used for rollback).
+     * Marks a lesson as attended.
      *
-     * @param lesson the lesson to re-book
-     * @throws LessonFullException if the lesson is full
+     * @param lesson the lesson attended
      */
-    private void lesson_reBook(Lesson lesson) throws LessonFullException {
-        lesson.bookMember(this);
-        bookedLessons.add(lesson);
+    public void attendLesson(Lesson lesson) {
+        Booking booking = findActiveBooking(lesson);
+        if (booking != null) {
+            booking.markAttended();
+        }
+    }
+
+    /**
+     * Gets the status of a specific booking.
+     *
+     * @param lesson the lesson to check
+     * @return the status, or null if not booked
+     */
+    public BookingStatus getBookingStatus(Lesson lesson) {
+        Booking booking = findLatestBooking(lesson);
+        return booking == null ? null : booking.getStatus();
+    }
+
+    /**
+     * Checks if the member has attended a lesson.
+     *
+     * @param lesson the lesson to check
+     * @return true if attended, false otherwise
+     */
+    public boolean hasAttended(Lesson lesson) {
+        Booking booking = findActiveBooking(lesson);
+        return booking != null && booking.getStatus() == BookingStatus.ATTENDED;
     }
 
     /**
@@ -110,7 +175,12 @@ public class Member {
      * @return true if there is a conflict, false otherwise
      */
     public boolean hasTimeConflict(Lesson lesson) {
-        for (Lesson booked : bookedLessons) {
+        for (Booking booking : bookings) {
+            if (!booking.isActive()) {
+                continue;
+            }
+
+            Lesson booked = booking.getLesson();
             if (booked.getWeekNumber() == lesson.getWeekNumber()
                     && booked.getDay() == lesson.getDay()
                     && booked.getTimeSlot() == lesson.getTimeSlot()) {
@@ -121,12 +191,66 @@ public class Member {
     }
 
     /**
-     * Gets the list of lessons this member is booked into.
+     * Gets the list of lessons this member is currently booked into.
      *
-     * @return the list of booked lessons
+     * @return active booked lessons (BOOKED or ATTENDED)
      */
     public List<Lesson> getBookedLessons() {
-        return bookedLessons;
+        return bookings.stream()
+                .filter(Booking::isActive)
+                .map(Booking::getLesson)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets all booking records (active and cancelled).
+     *
+     * @return immutable list of bookings
+     */
+    public List<Booking> getBookings() {
+        return Collections.unmodifiableList(bookings);
+    }
+
+    private boolean hasTimeConflictExcluding(Lesson lesson, Lesson excludedLesson) {
+        for (Booking booking : bookings) {
+            if (!booking.isActive()) {
+                continue;
+            }
+            Lesson booked = booking.getLesson();
+            if (booked.equals(excludedLesson)) {
+                continue;
+            }
+            if (booked.getWeekNumber() == lesson.getWeekNumber()
+                    && booked.getDay() == lesson.getDay()
+                    && booked.getTimeSlot() == lesson.getTimeSlot()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasActiveBookingForLesson(Lesson lesson) {
+        return findActiveBooking(lesson) != null;
+    }
+
+    private Booking findActiveBooking(Lesson lesson) {
+        for (int i = bookings.size() - 1; i >= 0; i--) {
+            Booking booking = bookings.get(i);
+            if (booking.getLesson().equals(lesson) && booking.isActive()) {
+                return booking;
+            }
+        }
+        return null;
+    }
+
+    private Booking findLatestBooking(Lesson lesson) {
+        for (int i = bookings.size() - 1; i >= 0; i--) {
+            Booking booking = bookings.get(i);
+            if (booking.getLesson().equals(lesson)) {
+                return booking;
+            }
+        }
+        return null;
     }
 
     // --- Getters and Setters ---
@@ -163,7 +287,13 @@ public class Member {
 
     /** @param bookedLessons the list of booked lessons to set */
     public void setBookedLessons(List<Lesson> bookedLessons) {
-        this.bookedLessons = bookedLessons;
+        this.bookings.clear();
+        if (bookedLessons == null) {
+            return;
+        }
+        for (Lesson lesson : bookedLessons) {
+            this.bookings.add(new Booking(this, lesson));
+        }
     }
 
     @Override

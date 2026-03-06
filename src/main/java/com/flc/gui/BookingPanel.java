@@ -30,130 +30,119 @@ public class BookingPanel extends JPanel {
     private LessonTableModel tableModel;
     private JLabel statusLabel;
 
-    /**
-     * Constructs the BookingPanel.
-     *
-     * @param bookingSystem the booking system instance
-     */
     public BookingPanel(BookingSystem bookingSystem) {
         this.bookingSystem = bookingSystem;
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout());
+        setBackground(FLCTheme.CONTENT_BG);
+        setOpaque(false);
         buildUI();
     }
 
-    /**
-     * Builds the UI components.
-     */
     private void buildUI() {
-        // Title
-        JLabel title = new JLabel("Book a Lesson", SwingConstants.CENTER);
-        title.setFont(new Font("SansSerif", Font.BOLD, 18));
+        JPanel content = UIHelper.createContentPanel();
 
-        // Controls panel
-        JPanel controlPanel = new JPanel(new GridBagLayout());
-        controlPanel.setBorder(BorderFactory.createTitledBorder("Booking Options"));
+        // ─── Controls Card ───────────────────────────────────────
+        JPanel controlCard = FLCTheme.createCardPanel();
+        controlCard.setLayout(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.insets = new Insets(5, 8, 5, 8);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Member selector
+        // Member
         gbc.gridx = 0;
         gbc.gridy = 0;
-        controlPanel.add(new JLabel("Member:"), gbc);
+        controlCard.add(FLCTheme.createFieldLabel("Member:"), gbc);
         gbc.gridx = 1;
         memberCombo = new JComboBox<>();
         refreshMemberCombo();
-        controlPanel.add(memberCombo, gbc);
+        FLCTheme.styleComboBox(memberCombo);
+        controlCard.add(memberCombo, gbc);
 
-        // Week selector
+        // Week
         gbc.gridx = 2;
         gbc.gridy = 0;
-        controlPanel.add(new JLabel("Week:"), gbc);
+        controlCard.add(FLCTheme.createFieldLabel("Week:"), gbc);
         gbc.gridx = 3;
         weekCombo = new JComboBox<>();
         for (int i = 1; i <= 8; i++)
             weekCombo.addItem(i);
-        controlPanel.add(weekCombo, gbc);
+        FLCTheme.styleComboBox(weekCombo);
+        controlCard.add(weekCombo, gbc);
 
-        // Day selector
+        // Day
         gbc.gridx = 0;
         gbc.gridy = 1;
-        controlPanel.add(new JLabel("Day:"), gbc);
+        controlCard.add(FLCTheme.createFieldLabel("Day:"), gbc);
         gbc.gridx = 1;
         dayCombo = new JComboBox<>(DayOfWeek.values());
-        controlPanel.add(dayCombo, gbc);
+        FLCTheme.styleComboBox(dayCombo);
+        controlCard.add(dayCombo, gbc);
 
-        // Time slot filter (optional)
+        // Time Slot
         gbc.gridx = 2;
         gbc.gridy = 1;
-        controlPanel.add(new JLabel("Time Slot:"), gbc);
+        controlCard.add(FLCTheme.createFieldLabel("Time Slot:"), gbc);
         gbc.gridx = 3;
         timeSlotCombo = new JComboBox<>();
         timeSlotCombo.addItem("All");
-        for (TimeSlot ts : TimeSlot.values()) {
+        for (TimeSlot ts : TimeSlot.values())
             timeSlotCombo.addItem(ts.getDisplayName());
-        }
-        controlPanel.add(timeSlotCombo, gbc);
+        FLCTheme.styleComboBox(timeSlotCombo);
+        controlCard.add(timeSlotCombo, gbc);
 
         // Search button
         gbc.gridx = 4;
         gbc.gridy = 0;
         gbc.gridheight = 2;
         gbc.fill = GridBagConstraints.BOTH;
-        JButton searchBtn = new JButton("Search Available Lessons");
+        JButton searchBtn = FLCTheme.createPrimaryButton("\uD83D\uDD0D  Search Available");
         searchBtn.addActionListener(e -> searchAvailableLessons());
-        controlPanel.add(searchBtn, gbc);
+        controlCard.add(searchBtn, gbc);
 
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(title, BorderLayout.NORTH);
-        topPanel.add(controlPanel, BorderLayout.CENTER);
-        add(topPanel, BorderLayout.NORTH);
+        content.add(controlCard, BorderLayout.NORTH);
 
-        // Results table
+        // ─── Results Card ────────────────────────────────────────
+        JPanel tableCard = FLCTheme.createCardPanel();
+        tableCard.setLayout(new BorderLayout(0, 10));
+
         tableModel = new LessonTableModel();
         lessonTable = new JTable(tableModel);
         lessonTable.setAutoCreateRowSorter(true);
         lessonTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        lessonTable.setRowHeight(25);
-        lessonTable.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 12));
-        add(new JScrollPane(lessonTable), BorderLayout.CENTER);
+        JScrollPane scrollPane = FLCTheme.createStyledScrollPane(lessonTable);
+        tableCard.add(scrollPane, BorderLayout.CENTER);
 
-        // Bottom panel
-        JPanel bottomPanel = new JPanel(new BorderLayout(5, 5));
-        JButton bookBtn = new JButton("Book Selected Lesson");
-        bookBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
+        // Bottom bar
+        JPanel bottomBar = new JPanel(new BorderLayout(10, 0));
+        bottomBar.setOpaque(false);
+
+        statusLabel = FLCTheme.createStatusLabel("Select a member and search for available lessons.");
+        bottomBar.add(statusLabel, BorderLayout.CENTER);
+
+        JButton bookBtn = FLCTheme.createSuccessButton("\u2714  Book Selected Lesson");
         bookBtn.addActionListener(e -> bookSelectedLesson());
-        bottomPanel.add(bookBtn, BorderLayout.EAST);
+        bottomBar.add(bookBtn, BorderLayout.EAST);
 
-        statusLabel = new JLabel("Select a member and search for available lessons.");
-        bottomPanel.add(statusLabel, BorderLayout.WEST);
-        add(bottomPanel, BorderLayout.SOUTH);
+        tableCard.add(bottomBar, BorderLayout.SOUTH);
+        content.add(tableCard, BorderLayout.CENTER);
+
+        add(content, BorderLayout.CENTER);
     }
 
-    /**
-     * Refreshes the member combo box.
-     */
     private void refreshMemberCombo() {
         memberCombo.removeAllItems();
-        for (Member m : bookingSystem.getMembers()) {
+        for (Member m : bookingSystem.getMembers())
             memberCombo.addItem(m);
-        }
     }
 
-    /**
-     * Searches for available lessons based on filters.
-     */
     private void searchAvailableLessons() {
         int week = (Integer) weekCombo.getSelectedItem();
         DayOfWeek day = (DayOfWeek) dayCombo.getSelectedItem();
         String timeFilter = (String) timeSlotCombo.getSelectedItem();
 
         List<Lesson> lessons = bookingSystem.getTimetable()
-                .getLessonsByWeekAndDay(week, day)
-                .stream()
-                .filter(Lesson::isAvailable)
-                .collect(Collectors.toList());
+                .getLessonsByWeekAndDay(week, day).stream()
+                .filter(Lesson::isAvailable).collect(Collectors.toList());
 
         if (!"All".equals(timeFilter)) {
             lessons = lessons.stream()
@@ -162,12 +151,9 @@ public class BookingPanel extends JPanel {
         }
 
         tableModel.setLessons(lessons);
-        statusLabel.setText(String.format("Found %d available lesson(s).", lessons.size()));
+        statusLabel.setText(String.format("\u2705 Found %d available lesson(s).", lessons.size()));
     }
 
-    /**
-     * Books the selected lesson for the selected member.
-     */
     private void bookSelectedLesson() {
         Member member = (Member) memberCombo.getSelectedItem();
         if (member == null) {
@@ -249,7 +235,7 @@ public class BookingPanel extends JPanel {
                 case 5:
                     return l.getAvailableSpaces();
                 case 6:
-                    return "£" + df.format(l.getExerciseType().getPrice());
+                    return "\u00A3" + df.format(l.getExerciseType().getPrice());
                 default:
                     return "";
             }

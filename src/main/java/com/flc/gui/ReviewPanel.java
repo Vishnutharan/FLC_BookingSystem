@@ -11,10 +11,12 @@ import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Panel for writing a review for an attended lesson. Includes lesson selection,
- * rating (1–5), comment with character counter, and duplicate review checking.
+ * rating (1-5) with star display, comment with character counter, and
+ * duplicate review checking.
  *
  * @author FLC Development Team
  */
@@ -28,79 +30,91 @@ public class ReviewPanel extends JPanel {
     private JComboBox<Integer> ratingCombo;
     private JTextArea commentArea;
     private JLabel charCountLabel;
-    private JLabel ratingMeaningLabel;
+    private JLabel ratingStarsLabel;
+    private JLabel statusLabel;
 
-    /**
-     * Constructs the ReviewPanel.
-     *
-     * @param bookingSystem the booking system instance
-     */
     public ReviewPanel(BookingSystem bookingSystem) {
         this.bookingSystem = bookingSystem;
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout());
+        setBackground(FLCTheme.CONTENT_BG);
+        setOpaque(false);
         buildUI();
     }
 
-    /**
-     * Builds the UI components.
-     */
     private void buildUI() {
-        JLabel title = new JLabel("Write a Review", SwingConstants.CENTER);
-        title.setFont(new Font("SansSerif", Font.BOLD, 18));
+        JPanel content = UIHelper.createContentPanel();
 
-        // Top: member selection
-        JPanel topControl = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        topControl.setBorder(BorderFactory.createTitledBorder("Select Member"));
+        // ─── Top: Member Selector ────────────────────────────────
+        JPanel topCard = FLCTheme.createCardPanel();
+        topCard.setLayout(new FlowLayout(FlowLayout.LEFT, 12, 5));
         memberCombo = new JComboBox<>();
         for (Member m : bookingSystem.getMembers())
             memberCombo.addItem(m);
-        topControl.add(new JLabel("Member:"));
-        topControl.add(memberCombo);
-        JButton loadBtn = new JButton("Load Attended Lessons");
+        FLCTheme.styleComboBox(memberCombo);
+        topCard.add(FLCTheme.createFieldLabel("Member:"));
+        topCard.add(memberCombo);
+        JButton loadBtn = FLCTheme.createPrimaryButton("\uD83D\uDD04  Load Attended Lessons");
         loadBtn.addActionListener(e -> loadLessons());
-        topControl.add(loadBtn);
+        topCard.add(loadBtn);
+        content.add(topCard, BorderLayout.NORTH);
+        addStatusLabel(content);
 
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(title, BorderLayout.NORTH);
-        topPanel.add(topControl, BorderLayout.CENTER);
-        add(topPanel, BorderLayout.NORTH);
-
-        // Center: split between lessons table and review form
+        // ─── Center: Split - Lessons + Review Form ───────────────
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         splitPane.setResizeWeight(0.45);
+        splitPane.setBorder(null);
+        splitPane.setDividerSize(8);
 
-        // Lessons table
-        JPanel lessonPanel = new JPanel(new BorderLayout());
-        lessonPanel.setBorder(BorderFactory.createTitledBorder("Attended Lessons (select one to review)"));
+        // Lessons table card
+        JPanel lessonCard = FLCTheme.createCardPanel();
+        lessonCard.setLayout(new BorderLayout(0, 8));
+        lessonCard.add(FLCTheme.createSectionHeader("\uD83D\uDCDA", "Attended Lessons  \u2014  Select one to review"),
+                BorderLayout.NORTH);
         tableModel = new LessonTableModel();
         lessonsTable = new JTable(tableModel);
         lessonsTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        lessonsTable.setRowHeight(25);
-        lessonPanel.add(new JScrollPane(lessonsTable), BorderLayout.CENTER);
-        splitPane.setTopComponent(lessonPanel);
+        lessonCard.add(FLCTheme.createStyledScrollPane(lessonsTable), BorderLayout.CENTER);
+        splitPane.setTopComponent(lessonCard);
 
-        // Review form
-        JPanel reviewForm = new JPanel(new BorderLayout(5, 5));
-        reviewForm.setBorder(BorderFactory.createTitledBorder("Review Details"));
+        // Review form card
+        JPanel reviewCard = FLCTheme.createCardPanel();
+        reviewCard.setLayout(new BorderLayout(0, 10));
+        reviewCard.add(FLCTheme.createSectionHeader("\u2B50", "Review Details"), BorderLayout.NORTH);
 
-        JPanel ratingPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel formPanel = new JPanel(new BorderLayout(0, 10));
+        formPanel.setOpaque(false);
+
+        // Rating row
+        JPanel ratingPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        ratingPanel.setOpaque(false);
+        ratingPanel.add(FLCTheme.createFieldLabel("Rating:"));
         ratingCombo = new JComboBox<>(new Integer[] { 1, 2, 3, 4, 5 });
-        ratingCombo.setSelectedIndex(4); // default to 5
-        ratingMeaningLabel = new JLabel("5 = Very Satisfied");
-        ratingCombo.addActionListener(e -> updateRatingMeaning());
-        ratingPanel.add(new JLabel("Rating:"));
+        ratingCombo.setSelectedIndex(4);
+        FLCTheme.styleComboBox(ratingCombo);
         ratingPanel.add(ratingCombo);
-        ratingPanel.add(ratingMeaningLabel);
-        reviewForm.add(ratingPanel, BorderLayout.NORTH);
+
+        ratingStarsLabel = new JLabel("\u2605\u2605\u2605\u2605\u2605  Very Satisfied");
+        ratingStarsLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        ratingStarsLabel.setForeground(FLCTheme.WARNING);
+        ratingPanel.add(ratingStarsLabel);
+        ratingCombo.addActionListener(e -> updateRatingDisplay());
+        formPanel.add(ratingPanel, BorderLayout.NORTH);
 
         // Comment area
-        JPanel commentPanel = new JPanel(new BorderLayout(3, 3));
-        commentPanel.add(new JLabel("Comment:"), BorderLayout.NORTH);
+        JPanel commentPanel = new JPanel(new BorderLayout(0, 5));
+        commentPanel.setOpaque(false);
+        commentPanel.add(FLCTheme.createFieldLabel("Comment:"), BorderLayout.NORTH);
         commentArea = new JTextArea(5, 40);
+        commentArea.setFont(FLCTheme.FONT_BODY);
         commentArea.setLineWrap(true);
         commentArea.setWrapStyleWord(true);
+        commentArea.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(FLCTheme.BORDER_COLOR),
+                BorderFactory.createEmptyBorder(8, 10, 8, 10)));
         charCountLabel = new JLabel("0 / " + MAX_COMMENT_LENGTH + " characters");
+        charCountLabel.setFont(FLCTheme.FONT_SMALL);
+        charCountLabel.setForeground(FLCTheme.TEXT_SECONDARY);
+
         commentArea.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) {
@@ -117,58 +131,54 @@ public class ReviewPanel extends JPanel {
                 updateCharCount();
             }
         });
+
         commentPanel.add(new JScrollPane(commentArea), BorderLayout.CENTER);
         commentPanel.add(charCountLabel, BorderLayout.SOUTH);
-        reviewForm.add(commentPanel, BorderLayout.CENTER);
+        formPanel.add(commentPanel, BorderLayout.CENTER);
 
-        splitPane.setBottomComponent(reviewForm);
-        add(splitPane, BorderLayout.CENTER);
+        reviewCard.add(formPanel, BorderLayout.CENTER);
+        splitPane.setBottomComponent(reviewCard);
 
-        // Submit button
-        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton submitBtn = new JButton("Submit Review");
-        submitBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
+        content.add(splitPane, BorderLayout.CENTER);
+
+        // ─── Bottom: Submit Button ───────────────────────────────
+        JButton submitBtn = FLCTheme.createStyledButton("\u2714  Submit Review", FLCTheme.PURPLE,
+                new Color(124, 58, 237));
+        content.add(UIHelper.createActionPanel(submitBtn), BorderLayout.SOUTH);
         submitBtn.addActionListener(e -> submitReview());
-        bottomPanel.add(submitBtn);
-        add(bottomPanel, BorderLayout.SOUTH);
+
+        add(content, BorderLayout.CENTER);
     }
 
-    /**
-     * Loads the selected member's booked lessons.
-     */
+    private void addStatusLabel(JPanel content) {
+        statusLabel = FLCTheme.createStatusLabel("Select a member and load their attended lessons.");
+        content.add(statusLabel, BorderLayout.SOUTH);
+    }
+
     private void loadLessons() {
         Member member = (Member) memberCombo.getSelectedItem();
         if (member == null)
             return;
-        tableModel.setLessons(new ArrayList<>(member.getBookedLessons()));
+        List<Lesson> attendedLessons = member.getBookedLessons().stream()
+                .filter(member::hasAttended)
+                .collect(Collectors.toList());
+        tableModel.setLessons(attendedLessons);
+        statusLabel.setText(member.getName() + " has attended " + attendedLessons.size() + " session(s).");
     }
 
-    /**
-     * Updates the rating meaning label.
-     */
-    private void updateRatingMeaning() {
+    private void updateRatingDisplay() {
         int rating = (Integer) ratingCombo.getSelectedItem();
-        String[] meanings = { "", "1 = Very Dissatisfied", "2 = Dissatisfied",
-                "3 = Neutral", "4 = Satisfied", "5 = Very Satisfied" };
-        ratingMeaningLabel.setText(meanings[rating]);
+        String stars = UIHelper.getStarRating(rating);
+        String[] meanings = { "", "Very Dissatisfied", "Dissatisfied", "Neutral", "Satisfied", "Very Satisfied" };
+        ratingStarsLabel.setText(stars + "  " + meanings[rating]);
     }
 
-    /**
-     * Updates the character count label.
-     */
     private void updateCharCount() {
         int len = commentArea.getText().length();
         charCountLabel.setText(len + " / " + MAX_COMMENT_LENGTH + " characters");
-        if (len > MAX_COMMENT_LENGTH) {
-            charCountLabel.setForeground(Color.RED);
-        } else {
-            charCountLabel.setForeground(Color.BLACK);
-        }
+        charCountLabel.setForeground(len > MAX_COMMENT_LENGTH ? FLCTheme.DANGER : FLCTheme.TEXT_SECONDARY);
     }
 
-    /**
-     * Submits the review with full validation.
-     */
     private void submitReview() {
         Member member = (Member) memberCombo.getSelectedItem();
         if (member == null) {
@@ -205,8 +215,8 @@ public class ReviewPanel extends JPanel {
         try {
             bookingSystem.addReview(member, lesson, rating, comment);
             JOptionPane.showMessageDialog(this,
-                    String.format("Review submitted successfully!\nLesson: %s\nRating: %d/5",
-                            lesson.getLessonId(), rating),
+                    String.format("Review submitted successfully!\nLesson: %s\nRating: %d/5 %s",
+                            lesson.getLessonId(), rating, UIHelper.getStarRating(rating)),
                     "Review Submitted", JOptionPane.INFORMATION_MESSAGE);
             commentArea.setText("");
             ratingCombo.setSelectedIndex(4);
@@ -219,13 +229,8 @@ public class ReviewPanel extends JPanel {
         }
     }
 
-    /**
-     * Table model for attended lessons.
-     */
     private static class LessonTableModel extends AbstractTableModel {
-        private static final String[] COLUMNS = {
-                "Lesson ID", "Exercise", "Day", "Time Slot", "Week"
-        };
+        private static final String[] COLUMNS = { "Lesson ID", "Exercise", "Day", "Time Slot", "Week" };
         private List<Lesson> lessons = new ArrayList<>();
 
         @Override

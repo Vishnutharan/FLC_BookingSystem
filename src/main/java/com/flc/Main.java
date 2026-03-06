@@ -1,13 +1,14 @@
 package com.flc;
 
+import com.flc.gui.FLCTheme;
 import com.flc.gui.MainFrame;
 import com.flc.service.BookingSystem;
 import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
 
 /**
  * Entry point for the Furzefield Leisure Centre Booking System.
- * Initializes sample data and launches the GUI on the Event Dispatch Thread.
+ * Initializes sample data, applies the custom FLC theme, and launches
+ * the GUI on the Event Dispatch Thread.
  *
  * @author FLC Development Team
  */
@@ -20,12 +21,8 @@ public class Main {
      * @param args command-line arguments (not used)
      */
     public static void main(String[] args) {
-        // Set system look and feel for native appearance
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception e) {
-            // Fall back to default look and feel
-        }
+        // Apply FLC custom theme defaults
+        FLCTheme.applyGlobalDefaults();
 
         SwingUtilities.invokeLater(() -> {
             BookingSystem system = new BookingSystem();

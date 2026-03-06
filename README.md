@@ -1,65 +1,76 @@
 # Furzefield Leisure Centre (FLC) Booking System
 
-A Java Swing desktop application for managing lesson bookings at the Furzefield Leisure Centre.  
-Developed for **7COM1025 – Programming for Software Engineers**, University of Hertfordshire.
+Self-contained Java Swing booking application for weekend group exercise lessons.
 
-## Features
+## Requirement Coverage
 
-- **Timetable Viewer** — Browse 48 lessons across 8 weekends, searchable by day or exercise type
-- **Book Lesson** — Book members into lessons with capacity and time-conflict validation
-- **Change Booking** — Change an existing booking to a different lesson
-- **Cancel Booking** — Cancel bookings with confirmation dialogs
-- **Write Review** — Rate attended lessons (1–5) with written comments
-- **Member Management** — View all members, their bookings, and add new members
-- **Reports** — Generate attendance/rating and income reports with TXT export
+- 10 pre-registered members (`M01` to `M10`)
+- 5 exercise types with fixed per-type pricing
+- 8 weekends x 2 days x 3 slots = 48 lessons
+- Lesson capacity enforced at 4 members
+- Timetable filtering:
+  - by weekend day (week + Saturday/Sunday)
+  - by exercise type
+- Booking validation:
+  - reject full lessons
+  - reject same week/day/slot conflicts
+- Booking change with rollback safety and space release
+- Booking cancellation frees capacity
+- Attendance tracking before review submission
+- Reviews: one per member per attended lesson, rating 1-5
+- 20+ seeded reviews with varied ratings
+- 4-week cycle reports:
+  - Report 1: per-lesson booked count + average rating
+  - Report 2: income by exercise + highest-income exercise type
+- Executable JAR output
+- JUnit tests for required scenarios
 
-## Technology Stack
+## Design Notes
 
-- **Language:** Java 11+
-- **GUI:** Java Swing (JFrame, JTable, JTabbedPane, etc.)
-- **Build:** Maven
-- **Testing:** JUnit 5 (20 test cases)
-- **IDE:** NetBeans / VS Code compatible
+- Core entities: `Member`, `Lesson`, `Booking`, `Review`, `Timetable`
+- Service layer: `BookingSystem`, `BookingManager`, `DataInitializer`
+- Applied pattern: `BookingManager` Singleton
+- UML class diagram with multiplicities:
+  - `docs/UML_Class_Diagram.md`
 
-## Project Structure
+## UI
 
-```
-src/main/java/com/flc/
-├── model/          — ExerciseType, TimeSlot, DayOfWeek, Lesson, Member, Review
-├── service/        — BookingSystem, Timetable, DataInitializer
-├── exception/      — Custom exceptions (LessonFull, TimeConflict, InvalidRating, MemberNotFound)
-├── gui/            — MainFrame + 7 functional panels
-└── Main.java       — Entry point
-src/test/java/com/flc/
-└── BookingSystemTest.java — 20 JUnit 5 tests
-```
+- Rich light-theme dashboard (no dark theme)
+- Card-based navigation
+- Animated fade+slide panel transitions
+- Validation feedback via dialog messages
 
-## Build & Run
+## Build and Run
+
+### Option 1 (Maven)
 
 ```bash
-# Compile and run tests
 mvn clean test
-
-# Package as JAR
 mvn clean package
-
-# Run the application
 java -jar target/FLC_BookingSystem.jar
 ```
 
-## Sample Data
+### Option 2 (No Maven, using JDK tools)
 
-- **48 lessons** (8 weekends × 2 days × 3 time slots)
-- **10 pre-registered members**
-- **20+ bookings** (including 3 fully-booked lessons)
-- **22 reviews** with varied ratings and comments
+```bash
+# Compile main sources
+javac -d out-main @sources-main.txt
 
-## Exercise Pricing
+# Build executable jar
+"C:\Program Files\Java\jdk-22\bin\jar.exe" --create --file target\FLC_BookingSystem.jar --main-class com.flc.Main -C out-main .
 
-| Exercise   | Price (£) |
-|------------|-----------|
-| Yoga       | 8.00      |
-| Zumba      | 7.50      |
-| Aquacise   | 9.00      |
-| Box Fit    | 10.00     |
-| Body Blitz | 9.50      |
+# Run
+java -jar target\FLC_BookingSystem.jar
+```
+
+## Test Execution Used in This Workspace
+
+Maven CLI was unavailable, so tests were executed with JUnit Console Standalone:
+
+```bash
+javac -d out-main @sources-main.txt
+javac -cp out-main;junit-platform-console-standalone-1.10.2.jar -d out-test @sources-test.txt
+java -jar junit-platform-console-standalone-1.10.2.jar --class-path out-main;out-test --scan-class-path
+```
+
+Result: 14/14 tests passed.

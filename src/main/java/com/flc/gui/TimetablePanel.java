@@ -12,7 +12,7 @@ import java.util.List;
 
 /**
  * Panel for viewing the timetable. Supports searching by day (with week filter)
- * or by exercise type, displaying results in a sortable JTable.
+ * or by exercise type, displaying results in a styled JTable with stats cards.
  *
  * @author FLC Development Team
  */
@@ -29,6 +29,7 @@ public class TimetablePanel extends JPanel {
     private JTable resultTable;
     private TimetableTableModel tableModel;
     private JLabel statusLabel;
+    private JPanel statsRow;
 
     /**
      * Constructs the TimetablePanel.
@@ -37,8 +38,9 @@ public class TimetablePanel extends JPanel {
      */
     public TimetablePanel(BookingSystem bookingSystem) {
         this.bookingSystem = bookingSystem;
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout());
+        setBackground(FLCTheme.CONTENT_BG);
+        setOpaque(false);
         buildUI();
     }
 
@@ -46,126 +48,140 @@ public class TimetablePanel extends JPanel {
      * Builds the complete user interface for the timetable panel.
      */
     private void buildUI() {
-        // Title
-        JLabel title = new JLabel("Timetable Viewer", SwingConstants.CENTER);
-        title.setFont(new Font("SansSerif", Font.BOLD, 18));
-        add(title, BorderLayout.NORTH);
+        JPanel content = UIHelper.createContentPanel();
+
+        // ─── Stats Row ───────────────────────────────────────────
+        statsRow = buildStatsRow();
+        content.add(statsRow, BorderLayout.NORTH);
+
+        // ─── Center: Search Options + Table ──────────────────────
+        JPanel centerCard = FLCTheme.createCardPanel();
+        centerCard.setLayout(new BorderLayout(0, 12));
 
         // Search controls
-        JPanel controlPanel = new JPanel(new BorderLayout(5, 5));
-        controlPanel.setBorder(BorderFactory.createTitledBorder("Search Options"));
+        JPanel searchSection = new JPanel(new BorderLayout(0, 8));
+        searchSection.setOpaque(false);
 
         // Radio buttons
+        JPanel radioPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 0));
+        radioPanel.setOpaque(false);
         searchByDayRadio = new JRadioButton("Search by Day", true);
         searchByExerciseRadio = new JRadioButton("Search by Exercise");
+        searchByDayRadio.setFont(FLCTheme.FONT_BODY_BOLD);
+        searchByExerciseRadio.setFont(FLCTheme.FONT_BODY_BOLD);
+        searchByDayRadio.setForeground(FLCTheme.TEXT_PRIMARY);
+        searchByExerciseRadio.setForeground(FLCTheme.TEXT_PRIMARY);
+        searchByDayRadio.setOpaque(false);
+        searchByExerciseRadio.setOpaque(false);
         ButtonGroup group = new ButtonGroup();
         group.add(searchByDayRadio);
         group.add(searchByExerciseRadio);
-
-        JPanel radioPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         radioPanel.add(searchByDayRadio);
         radioPanel.add(searchByExerciseRadio);
-        controlPanel.add(radioPanel, BorderLayout.NORTH);
+        searchSection.add(radioPanel, BorderLayout.NORTH);
 
-        // Day search panel
-        daySearchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        // Search fields
+        JPanel searchFields = new JPanel(new CardLayout());
+        searchFields.setOpaque(false);
+
+        // Day search
+        daySearchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        daySearchPanel.setOpaque(false);
         dayCombo = new JComboBox<>(DayOfWeek.values());
+        FLCTheme.styleComboBox(dayCombo);
         weekCombo = new JComboBox<>();
         for (int i = 1; i <= 8; i++)
             weekCombo.addItem(i);
-        JButton searchByDayBtn = new JButton("Search");
+        FLCTheme.styleComboBox(weekCombo);
+        JButton searchByDayBtn = FLCTheme.createPrimaryButton("Search");
         searchByDayBtn.addActionListener(e -> searchByDay());
-        daySearchPanel.add(new JLabel("Day:"));
+        daySearchPanel.add(FLCTheme.createFieldLabel("Day:"));
         daySearchPanel.add(dayCombo);
-        daySearchPanel.add(new JLabel("  Week:"));
+        daySearchPanel.add(FLCTheme.createFieldLabel("  Week:"));
         daySearchPanel.add(weekCombo);
         daySearchPanel.add(searchByDayBtn);
 
-        // Exercise search panel
-        exerciseSearchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        // Exercise search
+        exerciseSearchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        exerciseSearchPanel.setOpaque(false);
         exerciseCombo = new JComboBox<>(ExerciseType.values());
-        JButton searchByExBtn = new JButton("Search");
+        FLCTheme.styleComboBox(exerciseCombo);
+        JButton searchByExBtn = FLCTheme.createPrimaryButton("Search");
         searchByExBtn.addActionListener(e -> searchByExercise());
-        exerciseSearchPanel.add(new JLabel("Exercise:"));
+        exerciseSearchPanel.add(FLCTheme.createFieldLabel("Exercise:"));
         exerciseSearchPanel.add(exerciseCombo);
         exerciseSearchPanel.add(searchByExBtn);
-        exerciseSearchPanel.setVisible(false);
 
-        JPanel searchCards = new JPanel(new CardLayout());
-        searchCards.add(daySearchPanel, "DAY");
-        searchCards.add(exerciseSearchPanel, "EXERCISE");
-        controlPanel.add(searchCards, BorderLayout.CENTER);
+        searchFields.add(daySearchPanel, "DAY");
+        searchFields.add(exerciseSearchPanel, "EXERCISE");
+        searchSection.add(searchFields, BorderLayout.CENTER);
 
-        // Radio button listeners
-        searchByDayRadio.addActionListener(e -> {
-            daySearchPanel.setVisible(true);
-            exerciseSearchPanel.setVisible(false);
-            searchCards.revalidate();
-            searchCards.repaint();
-        });
-        searchByExerciseRadio.addActionListener(e -> {
-            daySearchPanel.setVisible(false);
-            exerciseSearchPanel.setVisible(true);
-            searchCards.revalidate();
-            searchCards.repaint();
-        });
+        // Radio listeners
+        CardLayout cl = (CardLayout) searchFields.getLayout();
+        searchByDayRadio.addActionListener(e -> cl.show(searchFields, "DAY"));
+        searchByExerciseRadio.addActionListener(e -> cl.show(searchFields, "EXERCISE"));
 
-        add(controlPanel, BorderLayout.NORTH);
+        centerCard.add(searchSection, BorderLayout.NORTH);
 
-        // Results panel
-        JPanel resultsPanel = new JPanel(new BorderLayout(5, 5));
-
-        // Create combined panel for title + controls at top
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(title, BorderLayout.NORTH);
-        topPanel.add(controlPanel, BorderLayout.CENTER);
-        add(topPanel, BorderLayout.NORTH);
-
+        // Table
         tableModel = new TimetableTableModel();
         resultTable = new JTable(tableModel);
         resultTable.setAutoCreateRowSorter(true);
         resultTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        resultTable.setRowHeight(25);
-        resultTable.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 12));
-        JScrollPane scrollPane = new JScrollPane(resultTable);
-        resultsPanel.add(scrollPane, BorderLayout.CENTER);
+        JScrollPane scrollPane = FLCTheme.createStyledScrollPane(resultTable);
+        centerCard.add(scrollPane, BorderLayout.CENTER);
 
-        statusLabel = new JLabel("Use the search options above to view the timetable.");
-        statusLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        resultsPanel.add(statusLabel, BorderLayout.SOUTH);
+        // Status
+        statusLabel = FLCTheme.createStatusLabel("Use the search options above to view the timetable.");
+        centerCard.add(statusLabel, BorderLayout.SOUTH);
 
-        add(resultsPanel, BorderLayout.CENTER);
+        content.add(centerCard, BorderLayout.CENTER);
+        add(content, BorderLayout.CENTER);
 
         // Show all by default
         showAllLessons();
     }
 
     /**
-     * Searches lessons by the selected day and week.
+     * Builds the stats row with summary cards.
      */
+    private JPanel buildStatsRow() {
+        List<Lesson> all = bookingSystem.getTimetable().getAllLessons();
+        int totalLessons = all.size();
+        int totalBooked = all.stream().mapToInt(l -> l.getBookedMembers().size()).sum();
+        double avgRating = all.stream().filter(l -> l.getAverageRating() > 0)
+                .mapToDouble(Lesson::getAverageRating).average().orElse(0.0);
+        int totalMembers = bookingSystem.getMembers().size();
+
+        return UIHelper.createStatsRow(
+                FLCTheme.createStatsCard("\uD83D\uDCDA", String.valueOf(totalLessons), "Total Lessons",
+                        FLCTheme.STATS_BLUE_BG, FLCTheme.PRIMARY),
+                FLCTheme.createStatsCard("\uD83D\uDCCB", String.valueOf(totalBooked), "Total Bookings",
+                        FLCTheme.STATS_GREEN_BG, FLCTheme.SUCCESS),
+                FLCTheme.createStatsCard("\u2B50", avgRating > 0 ? String.format("%.1f", avgRating) : "N/A",
+                        "Avg Rating",
+                        FLCTheme.STATS_AMBER_BG, FLCTheme.WARNING),
+                FLCTheme.createStatsCard("\uD83D\uDC65", String.valueOf(totalMembers), "Members",
+                        FLCTheme.STATS_PURPLE_BG, FLCTheme.PURPLE));
+    }
+
     private void searchByDay() {
         DayOfWeek day = (DayOfWeek) dayCombo.getSelectedItem();
         int week = (Integer) weekCombo.getSelectedItem();
         List<Lesson> results = bookingSystem.getTimetable().getLessonsByWeekAndDay(week, day);
         tableModel.setLessons(results);
-        statusLabel.setText(String.format("Found %d lesson(s) for %s, Week %d.",
+        statusLabel.setText(String.format("\u2705 Found %d lesson(s) for %s, Week %d.",
                 results.size(), day.getDisplayName(), week));
     }
 
-    /**
-     * Searches lessons by the selected exercise type.
-     */
     private void searchByExercise() {
         ExerciseType type = (ExerciseType) exerciseCombo.getSelectedItem();
         List<Lesson> results = bookingSystem.searchTimetableByExercise(type);
         tableModel.setLessons(results);
-        statusLabel.setText(String.format("Found %d lesson(s) for '%s'.",
+        statusLabel.setText(String.format("\u2705 Found %d lesson(s) for '%s'.",
                 results.size(), type.getDisplayName()));
     }
 
-    /**
-     * Shows all lessons in the timetable.
-     */
     private void showAllLessons() {
         List<Lesson> all = bookingSystem.getTimetable().getAllLessons();
         tableModel.setLessons(all);
@@ -178,7 +194,7 @@ public class TimetablePanel extends JPanel {
     private static class TimetableTableModel extends AbstractTableModel {
 
         private static final String[] COLUMNS = {
-                "Week", "Day", "Time Slot", "Exercise", "Price (£)", "Booked", "Available", "Avg Rating"
+                "Week", "Day", "Time Slot", "Exercise", "Price (\u00A3)", "Booked", "Available", "Avg Rating"
         };
         private final DecimalFormat df = new DecimalFormat("0.00");
         private List<Lesson> lessons = new ArrayList<>();
@@ -211,14 +227,14 @@ public class TimetablePanel extends JPanel {
                 case 3:
                     return lesson.getExerciseType().getDisplayName();
                 case 4:
-                    return "£" + df.format(lesson.getExerciseType().getPrice());
+                    return "\u00A3" + df.format(lesson.getExerciseType().getPrice());
                 case 5:
                     return lesson.getBookedMembers().size();
                 case 6:
                     return lesson.getAvailableSpaces();
                 case 7:
                     double avg = lesson.getAverageRating();
-                    return avg == 0.0 ? "N/A" : df.format(avg);
+                    return avg == 0.0 ? "N/A" : df.format(avg) + " " + UIHelper.getStarRatingDouble(avg);
                 default:
                     return "";
             }
@@ -231,9 +247,8 @@ public class TimetablePanel extends JPanel {
 
         @Override
         public Class<?> getColumnClass(int columnIndex) {
-            if (columnIndex == 0 || columnIndex == 5 || columnIndex == 6) {
+            if (columnIndex == 0 || columnIndex == 5 || columnIndex == 6)
                 return Integer.class;
-            }
             return String.class;
         }
 

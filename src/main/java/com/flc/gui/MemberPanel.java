@@ -12,8 +12,8 @@ import java.util.List;
 
 /**
  * Panel for viewing member details and their bookings. Shows a member list on
- * the
- * left and booking details on the right. Includes an "Add New Member" feature.
+ * the left and booking details on the right. Includes an "Add New Member"
+ * feature.
  *
  * @author FLC Development Team
  */
@@ -27,73 +27,85 @@ public class MemberPanel extends JPanel {
     private MemberBookingsTableModel bookingsTableModel;
     private JLabel summaryLabel;
 
-    /**
-     * Constructs the MemberPanel.
-     *
-     * @param bookingSystem the booking system instance
-     */
     public MemberPanel(BookingSystem bookingSystem) {
         this.bookingSystem = bookingSystem;
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout());
+        setBackground(FLCTheme.CONTENT_BG);
+        setOpaque(false);
         buildUI();
     }
 
-    /**
-     * Builds the UI components.
-     */
     private void buildUI() {
-        JLabel title = new JLabel("Members", SwingConstants.CENTER);
-        title.setFont(new Font("SansSerif", Font.BOLD, 18));
-        add(title, BorderLayout.NORTH);
+        JPanel content = UIHelper.createContentPanel();
 
-        // Left: member list
-        JPanel leftPanel = new JPanel(new BorderLayout(5, 5));
-        leftPanel.setBorder(BorderFactory.createTitledBorder("All Members"));
-        leftPanel.setPreferredSize(new Dimension(350, 0));
+        // ─── Split: Members List | Member Details ────────────────
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        splitPane.setResizeWeight(0.35);
+        splitPane.setBorder(null);
+        splitPane.setDividerSize(10);
+
+        // Left: member list card
+        JPanel leftCard = FLCTheme.createCardPanel();
+        leftCard.setLayout(new BorderLayout(0, 10));
+        leftCard.setPreferredSize(new Dimension(350, 0));
+        leftCard.add(FLCTheme.createSectionHeader("\uD83D\uDC65", "All Members"), BorderLayout.NORTH);
 
         memberTableModel = new MemberListTableModel(bookingSystem.getMembers());
         memberTable = new JTable(memberTableModel);
         memberTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        memberTable.setRowHeight(25);
         memberTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting())
                 showMemberDetails();
         });
-        leftPanel.add(new JScrollPane(memberTable), BorderLayout.CENTER);
+        leftCard.add(FLCTheme.createStyledScrollPane(memberTable), BorderLayout.CENTER);
 
-        JButton addMemberBtn = new JButton("Add New Member");
+        JButton addMemberBtn = FLCTheme.createSuccessButton("\u2795  Add New Member");
         addMemberBtn.addActionListener(e -> addNewMember());
-        leftPanel.add(addMemberBtn, BorderLayout.SOUTH);
+        JPanel addPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        addPanel.setOpaque(false);
+        addPanel.add(addMemberBtn);
+        leftCard.add(addPanel, BorderLayout.SOUTH);
 
-        // Right: member details
-        JPanel rightPanel = new JPanel(new BorderLayout(5, 5));
-        rightPanel.setBorder(BorderFactory.createTitledBorder("Member Details"));
+        splitPane.setLeftComponent(leftCard);
 
-        memberDetailLabel = new JLabel("Select a member to view details.");
-        memberDetailLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        // Right: member details card
+        JPanel rightCard = FLCTheme.createCardPanel();
+        rightCard.setLayout(new BorderLayout(0, 12));
+        rightCard.add(FLCTheme.createSectionHeader("\uD83D\uDCCB", "Member Details"), BorderLayout.NORTH);
+
+        // Detail info
+        memberDetailLabel = new JLabel(
+                "<html><span style='color:#64748B;'>Select a member to view details.</span></html>");
+        memberDetailLabel.setFont(FLCTheme.FONT_BODY);
         memberDetailLabel.setVerticalAlignment(SwingConstants.TOP);
-        rightPanel.add(memberDetailLabel, BorderLayout.NORTH);
+        memberDetailLabel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(FLCTheme.BORDER_COLOR),
+                BorderFactory.createEmptyBorder(12, 15, 12, 15)));
+        memberDetailLabel.setOpaque(true);
+        memberDetailLabel.setBackground(FLCTheme.STATS_BLUE_BG);
 
+        JPanel detailArea = new JPanel(new BorderLayout(0, 12));
+        detailArea.setOpaque(false);
+        detailArea.add(memberDetailLabel, BorderLayout.NORTH);
+
+        // Bookings table
         bookingsTableModel = new MemberBookingsTableModel();
         bookingsTable = new JTable(bookingsTableModel);
-        bookingsTable.setRowHeight(25);
-        bookingsTable.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 12));
-        rightPanel.add(new JScrollPane(bookingsTable), BorderLayout.CENTER);
+        detailArea.add(FLCTheme.createStyledScrollPane(bookingsTable), BorderLayout.CENTER);
 
         summaryLabel = new JLabel(" ");
-        summaryLabel.setFont(new Font("SansSerif", Font.BOLD, 13));
-        rightPanel.add(summaryLabel, BorderLayout.SOUTH);
+        summaryLabel.setFont(FLCTheme.FONT_BODY_BOLD);
+        summaryLabel.setForeground(FLCTheme.TEXT_PRIMARY);
+        summaryLabel.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
+        detailArea.add(summaryLabel, BorderLayout.SOUTH);
 
-        // Split
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
-        splitPane.setResizeWeight(0.35);
-        add(splitPane, BorderLayout.CENTER);
+        rightCard.add(detailArea, BorderLayout.CENTER);
+        splitPane.setRightComponent(rightCard);
+
+        content.add(splitPane, BorderLayout.CENTER);
+        add(content, BorderLayout.CENTER);
     }
 
-    /**
-     * Shows the selected member's details and bookings.
-     */
     private void showMemberDetails() {
         int row = memberTable.getSelectedRow();
         if (row < 0)
@@ -103,7 +115,15 @@ public class MemberPanel extends JPanel {
         Member member = bookingSystem.getMembers().get(modelRow);
 
         memberDetailLabel.setText(String.format(
-                "<html><b>ID:</b> %s<br/><b>Name:</b> %s<br/><b>Email:</b> %s</html>",
+                "<html>"
+                        + "<div style='font-family:Segoe UI;'>"
+                        + "<b style='font-size:11px;color:#64748B;'>ID</b><br/>"
+                        + "<span style='font-size:13px;color:#0F172A;'>%s</span><br/><br/>"
+                        + "<b style='font-size:11px;color:#64748B;'>NAME</b><br/>"
+                        + "<span style='font-size:13px;color:#0F172A;'>%s</span><br/><br/>"
+                        + "<b style='font-size:11px;color:#64748B;'>EMAIL</b><br/>"
+                        + "<span style='font-size:13px;color:#0F172A;'>%s</span>"
+                        + "</div></html>",
                 member.getMemberId(), member.getName(), member.getEmail()));
 
         bookingsTableModel.setLessons(new ArrayList<>(member.getBookedLessons()));
@@ -113,20 +133,19 @@ public class MemberPanel extends JPanel {
         for (Lesson l : member.getBookedLessons()) {
             totalSpent += l.getExerciseType().getPrice();
         }
-        summaryLabel.setText(String.format("Total lessons booked: %d  |  Total amount spent: £%s",
+        summaryLabel.setText(String.format("\uD83D\uDCB0 Total lessons booked: %d  |  Total amount spent: \u00A3%s",
                 member.getBookedLessons().size(), df.format(totalSpent)));
     }
 
-    /**
-     * Opens a dialog to add a new member.
-     */
     private void addNewMember() {
-        JPanel formPanel = new JPanel(new GridLayout(2, 2, 5, 5));
+        JPanel formPanel = new JPanel(new GridLayout(2, 2, 8, 8));
         JTextField nameField = new JTextField(20);
+        nameField.setFont(FLCTheme.FONT_BODY);
         JTextField emailField = new JTextField(20);
-        formPanel.add(new JLabel("Name:"));
+        emailField.setFont(FLCTheme.FONT_BODY);
+        formPanel.add(FLCTheme.createFieldLabel("Name:"));
         formPanel.add(nameField);
-        formPanel.add(new JLabel("Email:"));
+        formPanel.add(FLCTheme.createFieldLabel("Email:"));
         formPanel.add(emailField);
 
         int result = JOptionPane.showConfirmDialog(this, formPanel, "Add New Member",
@@ -142,14 +161,12 @@ public class MemberPanel extends JPanel {
                 return;
             }
 
-            // Basic email format validation
             if (!email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
                 JOptionPane.showMessageDialog(this, "Please enter a valid email address.",
                         "Validation Error", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
-            // Check unique email
             for (Member m : bookingSystem.getMembers()) {
                 if (m.getEmail().equalsIgnoreCase(email)) {
                     JOptionPane.showMessageDialog(this,
@@ -169,9 +186,6 @@ public class MemberPanel extends JPanel {
         }
     }
 
-    /**
-     * Table model for the member list.
-     */
     private static class MemberListTableModel extends AbstractTableModel {
         private static final String[] COLUMNS = { "ID", "Name", "Email" };
         private List<Member> members;
@@ -221,13 +235,8 @@ public class MemberPanel extends JPanel {
         }
     }
 
-    /**
-     * Table model for a member's bookings.
-     */
     private static class MemberBookingsTableModel extends AbstractTableModel {
-        private static final String[] COLUMNS = {
-                "Lesson ID", "Exercise", "Day", "Time Slot", "Week", "Price"
-        };
+        private static final String[] COLUMNS = { "Lesson ID", "Exercise", "Day", "Time Slot", "Week", "Price" };
         private final DecimalFormat df = new DecimalFormat("0.00");
         private List<Lesson> lessons = new ArrayList<>();
 
@@ -266,7 +275,7 @@ public class MemberPanel extends JPanel {
                 case 4:
                     return l.getWeekNumber();
                 case 5:
-                    return "£" + df.format(l.getExerciseType().getPrice());
+                    return "\u00A3" + df.format(l.getExerciseType().getPrice());
                 default:
                     return "";
             }
