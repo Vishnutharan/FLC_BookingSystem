@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -125,23 +126,15 @@ public class BookingSystem {
      */
     public Review addReview(Member member, Lesson lesson, int rating, String comment)
             throws InvalidRatingException {
-        if (!member.getBookedLessons().contains(lesson)) {
-            throw new IllegalStateException("Member " + member.getName()
-                    + " is not booked in lesson " + lesson.getLessonId()
-                    + ". Only booked members can write reviews.");
-        }
-
-        if (!member.hasAttended(lesson)) {
+        if (member.getBookingStatus(lesson) != com.flc.model.BookingStatus.ATTENDED) {
             throw new IllegalStateException("Member " + member.getName()
                     + " has not attended lesson " + lesson.getLessonId()
                     + ". Only attended sessions can be reviewed.");
         }
 
-        for (Review existing : reviews) {
-            if (existing.getMember().equals(member) && existing.getLesson().equals(lesson)) {
-                throw new IllegalStateException("Member " + member.getName()
-                        + " has already reviewed lesson " + lesson.getLessonId() + ".");
-            }
+        if (hasReview(member, lesson)) {
+            throw new IllegalStateException("Member " + member.getName()
+                    + " has already reviewed lesson " + lesson.getLessonId() + ".");
         }
 
         String reviewId = "R" + String.format("%03d", nextReviewId++);
@@ -149,6 +142,34 @@ public class BookingSystem {
         reviews.add(review);
         lesson.addReview(review);
         return review;
+    }
+
+    /**
+     * Checks whether a member has already submitted a review for a lesson.
+     *
+     * @param member member to check
+     * @param lesson lesson to check
+     * @return true if a review already exists
+     */
+    public boolean hasReview(Member member, Lesson lesson) {
+        return reviews.stream()
+                .anyMatch(review -> review.getMember().equals(member) && review.getLesson().equals(lesson));
+    }
+
+    /**
+     * Gets the list of attended lessons that a member can still review.
+     *
+     * @param member target member
+     * @return sorted reviewable lessons
+     */
+    public List<Lesson> getReviewableLessons(Member member) {
+        return member.getBookedLessons().stream()
+                .filter(member::hasAttended)
+                .filter(lesson -> !hasReview(member, lesson))
+                .sorted(Comparator.comparingInt(Lesson::getWeekNumber)
+                        .thenComparing(lesson -> lesson.getDay().ordinal())
+                        .thenComparing(lesson -> lesson.getTimeSlot().ordinal()))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -254,8 +275,68 @@ public class BookingSystem {
      * @return cycle count
      */
     public int getCycleCount() {
-        int maxWeek = getMaxWeekNumber();
-        return maxWeek == 0 ? 0 : (int) Math.ceil(maxWeek / 4.0);
+        int weekCount = getWeekCount();
+        return weekCount == 0 ? 0 : (int) Math.ceil(weekCount / 4.0);
+    }
+
+    /**
+     * Returns the number of weeks configured in the timetable.
+     *
+     * @return total distinct weeks
+     */
+    public int getWeekCount() {
+        return getMaxWeekNumber();
+    }
+
+    /**
+     * Gets the number of members who have attended the given lesson.
+     *
+     * @param lesson target lesson
+     * @return attended member count
+     */
+    public int getAttendedCount(Lesson lesson) {
+        return (int) members.stream()
+                .filter(member -> member.hasAttended(lesson))
+                .count();
+    }
+
+    /**
+     * Generates an assignment audit report showing whether the seeded data meets
+     * the minimum deliverable requirements.
+     *
+     * @return formatted audit report
+     */
+    public String generateRequirementAuditReport() {
+        int memberCount = members.size();
+        Set<ExerciseType> exerciseTypes = timetable.getAllLessons().stream()
+                .map(Lesson::getExerciseType)
+                .collect(Collectors.toSet());
+        int weekendCount = getWeekCount();
+        int lessonCount = timetable.getAllLessons().size();
+        int reviewCount = reviews.size();
+
+        boolean membersOk = memberCount >= 10;
+        boolean exercisesOk = exerciseTypes.size() >= 4;
+        boolean weekendsOk = weekendCount >= 8;
+        boolean lessonsOk = lessonCount >= 48;
+        boolean reviewsOk = reviewCount >= 20;
+        boolean overall = membersOk && exercisesOk && weekendsOk && lessonsOk && reviewsOk;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("==========================================================\n");
+        sb.append("     ASSIGNMENT REQUIREMENT AUDIT\n");
+        sb.append("     Furzefield Leisure Centre\n");
+        sb.append("==========================================================\n\n");
+        sb.append(formatRequirementLine("Registered members", memberCount, 10, membersOk));
+        sb.append(formatRequirementLine("Exercise types in timetable", exerciseTypes.size(), 4, exercisesOk));
+        sb.append(formatRequirementLine("Weekends designed", weekendCount, 8, weekendsOk));
+        sb.append(formatRequirementLine("Lessons designed", lessonCount, 48, lessonsOk));
+        sb.append(formatRequirementLine("Seeded reviews", reviewCount, 20, reviewsOk));
+        sb.append(String.format("%-30s %d\n", "4-week cycles available", getCycleCount()));
+        sb.append(String.format("%-30s %d\n", "Maximum lesson capacity", Lesson.MAX_CAPACITY));
+        sb.append("\n");
+        sb.append("OVERALL STATUS: ").append(overall ? "PASS" : "FAIL").append("\n");
+        return sb.toString();
     }
 
     /** @return timetable */
@@ -311,36 +392,45 @@ public class BookingSystem {
         sb.append("     ").append(title).append("\n");
         sb.append("     Furzefield Leisure Centre\n");
         sb.append("==========================================================\n\n");
-        sb.append(String.format("%-14s %-12s %-12s %-10s %-7s %-11s\n",
+        sb.append(String.format("%-14s %-12s %-12s %-10s %-7s %-9s %-8s %-11s\n",
                 "Lesson ID",
                 "Exercise",
                 "Week/Day",
                 "Time",
                 "Booked",
+                "Attended",
+                "Reviews",
                 "Avg Rating"));
-        sb.append("--------------------------------------------------------------------------\n");
+        sb.append("-----------------------------------------------------------------------------------\n");
 
         int totalBookings = 0;
+        int totalAttendance = 0;
         for (Lesson lesson : lessons) {
             int bookedCount = lesson.getBookedMembers().size();
+            int attendedCount = getAttendedCount(lesson);
+            int reviewCount = lesson.getReviews().size();
             totalBookings += bookedCount;
+            totalAttendance += attendedCount;
             String avgRating = lesson.getAverageRating() == 0.0
                     ? "N/A"
                     : df.format(lesson.getAverageRating());
 
-            sb.append(String.format("%-14s %-12s W%-2d %-9s %-10s %-7d %-11s\n",
+            sb.append(String.format("%-14s %-12s W%-2d %-9s %-10s %-7d %-9d %-8d %-11s\n",
                     lesson.getLessonId(),
                     lesson.getExerciseType().getDisplayName(),
                     lesson.getWeekNumber(),
                     lesson.getDay().getDisplayName(),
                     lesson.getTimeSlot().getDisplayName(),
                     bookedCount,
+                    attendedCount,
+                    reviewCount,
                     avgRating));
         }
 
-        sb.append("--------------------------------------------------------------------------\n");
+        sb.append("-----------------------------------------------------------------------------------\n");
         sb.append(String.format("Total Lessons: %d\n", lessons.size()));
         sb.append(String.format("Total Bookings: %d\n", totalBookings));
+        sb.append(String.format("Total Attended: %d\n", totalAttendance));
         return sb.toString();
     }
 
@@ -408,6 +498,14 @@ public class BookingSystem {
                 .mapToInt(Lesson::getWeekNumber)
                 .max()
                 .orElse(0);
+    }
+
+    private String formatRequirementLine(String label, int actual, int minimum, boolean passed) {
+        return String.format("%-30s %d (minimum %d) [%s]\n",
+                label,
+                actual,
+                minimum,
+                passed ? "PASS" : "FAIL");
     }
 
     private Map<ExerciseType, Double> calculateIncomeByExercise(List<Lesson> lessons) {

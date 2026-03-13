@@ -146,6 +146,15 @@ public class BookingSystemTest {
     }
 
     @Test
+    @DisplayName("Timetable filtering by day across all weeks returns all matching lessons")
+    void testTimetableFilter_ByDayAcrossAllWeeks() {
+        List<Lesson> saturdayLessons = system.searchTimetableByDay(DayOfWeek.SATURDAY);
+
+        assertEquals(24, saturdayLessons.size());
+        assertTrue(saturdayLessons.stream().allMatch(l -> l.getDay() == DayOfWeek.SATURDAY));
+    }
+
+    @Test
     @DisplayName("Attendance report contains correct member counts and average ratings")
     void testReport_AttendanceCountsAndAverages() {
         Lesson knownLesson = system.getTimetable().getLessonById("L-W1-SAT-AM");
@@ -202,6 +211,30 @@ public class BookingSystemTest {
         assertDoesNotThrow(() -> system.addReview(testMember, lesson, 5, "Excellent class."));
         assertThrows(IllegalStateException.class,
                 () -> system.addReview(testMember, lesson, 4, "Second review should fail."));
+    }
+
+    @Test
+    @DisplayName("Attended bookings cannot be cancelled")
+    void testCancelBooking_AfterAttendanceRejected() {
+        Member member = system.getMembers().stream()
+                .filter(m -> m.getMemberId().equals("M01"))
+                .findFirst()
+                .orElseThrow();
+        Lesson attendedLesson = system.getTimetable().getLessonById("L-W1-SAT-AM");
+
+        assertThrows(IllegalStateException.class, () -> system.cancelBooking(member, attendedLesson));
+        assertTrue(member.getBookedLessons().contains(attendedLesson));
+    }
+
+    @Test
+    @DisplayName("Requirement audit confirms seeded data meets assignment minimums")
+    void testRequirementAudit_MeetsMinimums() {
+        String audit = system.generateRequirementAuditReport();
+
+        assertTrue(audit.contains("Registered members"));
+        assertTrue(audit.contains("Lessons designed"));
+        assertTrue(audit.contains("Seeded reviews"));
+        assertTrue(audit.contains("OVERALL STATUS: PASS"));
     }
 
     @Test

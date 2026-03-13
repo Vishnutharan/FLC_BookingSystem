@@ -21,12 +21,22 @@ public class Main {
      * @param args command-line arguments (not used)
      */
     public static void main(String[] args) {
+        BookingSystem system = new BookingSystem();
+        system.initializeSampleData();
+
+        if (args.length > 0 && "--console".equalsIgnoreCase(args[0])) {
+            System.out.println(system.generateRequirementAuditReport());
+            for (int cycle = 1; cycle <= system.getCycleCount(); cycle++) {
+                System.out.println(system.generateAttendanceReportForCycle(cycle));
+                System.out.println(system.generateIncomeReportForCycle(cycle));
+            }
+            return;
+        }
+
         // Apply FLC custom theme defaults
         FLCTheme.applyGlobalDefaults();
 
         SwingUtilities.invokeLater(() -> {
-            BookingSystem system = new BookingSystem();
-            system.initializeSampleData();
             MainFrame frame = new MainFrame(system);
             frame.setVisible(true);
         });

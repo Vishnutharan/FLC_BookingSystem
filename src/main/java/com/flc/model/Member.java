@@ -76,6 +76,11 @@ public class Member {
             return;
         }
 
+        if (booking.getStatus() == BookingStatus.ATTENDED) {
+            throw new IllegalStateException("Cannot cancel lesson " + lesson.getLessonId()
+                    + " because it has already been marked as attended.");
+        }
+
         booking.cancel();
         lesson.removeMember(this);
     }
