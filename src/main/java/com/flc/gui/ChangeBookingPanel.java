@@ -84,7 +84,7 @@ public class ChangeBookingPanel extends JPanel {
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
         filterPanel.setOpaque(false);
         newWeekCombo = new JComboBox<>();
-        for (int i = 1; i <= 8; i++)
+        for (int i = 1; i <= Math.max(bookingSystem.getWeekCount(), 1); i++)
             newWeekCombo.addItem(i);
         FLCTheme.styleComboBox(newWeekCombo);
         newDayCombo = new JComboBox<>(DayOfWeek.values());
@@ -130,7 +130,9 @@ public class ChangeBookingPanel extends JPanel {
         Member member = (Member) memberCombo.getSelectedItem();
         if (member == null)
             return;
-        currentBookingsModel.setLessons(new ArrayList<>(member.getBookedLessons()));
+        currentBookingsModel.setLessons(member.getBookedLessons().stream()
+                .filter(lesson -> member.getBookingStatus(lesson) == BookingStatus.BOOKED)
+                .collect(Collectors.toList()));
     }
 
     private void findAvailableLessons() {

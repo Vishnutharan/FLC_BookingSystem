@@ -8,19 +8,22 @@ Self-contained Java Swing booking application for weekend group exercise lessons
 - 5 exercise types with fixed per-type pricing
 - 8 weekends x 2 days x 3 slots = 48 lessons
 - Lesson capacity enforced at 4 members
+- Assignment audit report confirming dataset minimums are satisfied
 - Timetable filtering:
-  - by weekend day (week + Saturday/Sunday)
+  - by Saturday/Sunday across all weeks
+  - by specific week + Saturday/Sunday
   - by exercise type
 - Booking validation:
   - reject full lessons
   - reject same week/day/slot conflicts
 - Booking change with rollback safety and space release
 - Booking cancellation frees capacity
+- Attended bookings cannot be cancelled
 - Attendance tracking before review submission
 - Reviews: one per member per attended lesson, rating 1-5
 - 20+ seeded reviews with varied ratings
 - 4-week cycle reports:
-  - Report 1: per-lesson booked count + average rating
+  - Report 1: per-lesson booked count, attended count, review count, and average rating
   - Report 2: income by exercise + highest-income exercise type
 - Executable JAR output
 - JUnit tests for required scenarios
@@ -50,6 +53,14 @@ mvn clean package
 java -jar target/FLC_BookingSystem.jar
 ```
 
+### Console report mode
+
+```bash
+java -cp target/classes com.flc.Main --console
+```
+
+This prints the assignment requirement audit plus both 4-week cycle reports to `System.out`.
+
 ### Option 2 (No Maven, using JDK tools)
 
 ```bash
@@ -73,4 +84,4 @@ javac -cp out-main;junit-platform-console-standalone-1.10.2.jar -d out-test @sou
 java -jar junit-platform-console-standalone-1.10.2.jar --class-path out-main;out-test --scan-class-path
 ```
 
-Result: 14/14 tests passed.
+Result: 17/17 tests passed.

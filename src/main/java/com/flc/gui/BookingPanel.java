@@ -64,7 +64,7 @@ public class BookingPanel extends JPanel {
         controlCard.add(FLCTheme.createFieldLabel("Week:"), gbc);
         gbc.gridx = 3;
         weekCombo = new JComboBox<>();
-        for (int i = 1; i <= 8; i++)
+        for (int i = 1; i <= Math.max(bookingSystem.getWeekCount(), 1); i++)
             weekCombo.addItem(i);
         FLCTheme.styleComboBox(weekCombo);
         controlCard.add(weekCombo, gbc);

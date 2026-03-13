@@ -79,8 +79,11 @@ public class CancelBookingPanel extends JPanel {
         Member member = (Member) memberCombo.getSelectedItem();
         if (member == null)
             return;
-        tableModel.setLessons(new ArrayList<>(member.getBookedLessons()));
-        statusLabel.setText(member.getName() + " has " + member.getBookedLessons().size() + " booking(s).");
+        List<Lesson> cancelableLessons = member.getBookedLessons().stream()
+                .filter(lesson -> member.getBookingStatus(lesson) == BookingStatus.BOOKED)
+                .collect(java.util.stream.Collectors.toList());
+        tableModel.setLessons(cancelableLessons);
+        statusLabel.setText(member.getName() + " has " + cancelableLessons.size() + " cancelable booking(s).");
     }
 
     private void cancelSelectedBooking() {
@@ -111,10 +114,15 @@ public class CancelBookingPanel extends JPanel {
                 "Confirm Cancellation", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
 
         if (confirm == JOptionPane.YES_OPTION) {
-            bookingSystem.cancelBooking(member, lesson);
-            JOptionPane.showMessageDialog(this, "Booking cancelled successfully.",
-                    "Cancellation Successful", JOptionPane.INFORMATION_MESSAGE);
-            loadBookings();
+            try {
+                bookingSystem.cancelBooking(member, lesson);
+                JOptionPane.showMessageDialog(this, "Booking cancelled successfully.",
+                        "Cancellation Successful", JOptionPane.INFORMATION_MESSAGE);
+                loadBookings();
+            } catch (IllegalStateException ex) {
+                JOptionPane.showMessageDialog(this, ex.getMessage(),
+                        "Cancellation Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 

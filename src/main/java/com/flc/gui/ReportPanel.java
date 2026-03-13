@@ -61,15 +61,21 @@ public class ReportPanel extends JPanel {
         FLCTheme.styleComboBox(cycleCombo);
         cyclePanel.add(cycleCombo, BorderLayout.CENTER);
 
-        JLabel cycleHint = new JLabel("Cycle 1 = Weeks 1-4, Cycle 2 = Weeks 5-8");
+        JLabel cycleHint = new JLabel("Each cycle covers 4 timetable weeks.");
         cycleHint.setFont(FLCTheme.FONT_SMALL);
         cycleHint.setForeground(FLCTheme.TEXT_SECONDARY);
         cyclePanel.add(cycleHint, BorderLayout.EAST);
 
         topSection.add(cyclePanel, BorderLayout.NORTH);
 
-        JPanel actionsRow = new JPanel(new GridLayout(1, 3, 15, 0));
+        JPanel actionsRow = new JPanel(new GridLayout(2, 2, 15, 15));
         actionsRow.setOpaque(false);
+        actionsRow.add(createReportCard(
+                "Requirement Audit",
+                "Verify members, lessons, weekends, and reviews",
+                FLCTheme.STATS_PURPLE_BG,
+                FLCTheme.PURPLE,
+                this::generateRequirementAudit));
         actionsRow.add(createReportCard(
                 "Attendance and Rating",
                 "Report 1 for the selected 4-week cycle",
@@ -102,8 +108,9 @@ public class ReportPanel extends JPanel {
         reportArea.setBackground(new Color(252, 253, 255));
         reportArea.setForeground(FLCTheme.TEXT_PRIMARY);
         reportArea.setMargin(new Insets(15, 15, 15, 15));
-        reportArea.setText("Select a cycle and click a report card to generate output.");
+        reportArea.setText(bookingSystem.generateRequirementAuditReport());
         reportArea.setBorder(BorderFactory.createLineBorder(FLCTheme.BORDER_COLOR));
+        currentReportType = "Requirement_Audit_Report";
 
         JScrollPane scrollPane = new JScrollPane(reportArea);
         scrollPane.setBorder(BorderFactory.createLineBorder(FLCTheme.BORDER_COLOR));
@@ -174,6 +181,13 @@ public class ReportPanel extends JPanel {
     private int selectedCycle() {
         Integer selected = (Integer) cycleCombo.getSelectedItem();
         return selected == null ? 1 : selected;
+    }
+
+    private void generateRequirementAudit() {
+        String report = bookingSystem.generateRequirementAuditReport();
+        reportArea.setText(report);
+        reportArea.setCaretPosition(0);
+        currentReportType = "Requirement_Audit_Report";
     }
 
     private void generateAttendanceReport() {

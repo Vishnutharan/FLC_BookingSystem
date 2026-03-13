@@ -22,7 +22,7 @@ public class TimetablePanel extends JPanel {
     private JRadioButton searchByDayRadio;
     private JRadioButton searchByExerciseRadio;
     private JComboBox<DayOfWeek> dayCombo;
-    private JComboBox<Integer> weekCombo;
+    private JComboBox<Object> weekCombo;
     private JComboBox<ExerciseType> exerciseCombo;
     private JPanel daySearchPanel;
     private JPanel exerciseSearchPanel;
@@ -90,7 +90,8 @@ public class TimetablePanel extends JPanel {
         dayCombo = new JComboBox<>(DayOfWeek.values());
         FLCTheme.styleComboBox(dayCombo);
         weekCombo = new JComboBox<>();
-        for (int i = 1; i <= 8; i++)
+        weekCombo.addItem("All Weeks");
+        for (int i = 1; i <= Math.max(bookingSystem.getWeekCount(), 1); i++)
             weekCombo.addItem(i);
         FLCTheme.styleComboBox(weekCombo);
         JButton searchByDayBtn = FLCTheme.createPrimaryButton("Search");
@@ -167,11 +168,21 @@ public class TimetablePanel extends JPanel {
 
     private void searchByDay() {
         DayOfWeek day = (DayOfWeek) dayCombo.getSelectedItem();
-        int week = (Integer) weekCombo.getSelectedItem();
-        List<Lesson> results = bookingSystem.getTimetable().getLessonsByWeekAndDay(week, day);
+        Object selectedWeek = weekCombo.getSelectedItem();
+        List<Lesson> results;
+
+        if (selectedWeek instanceof Integer) {
+            int week = (Integer) selectedWeek;
+            results = bookingSystem.getTimetable().getLessonsByWeekAndDay(week, day);
+            statusLabel.setText(String.format("\u2705 Found %d lesson(s) for %s, Week %d.",
+                    results.size(), day.getDisplayName(), week));
+        } else {
+            results = bookingSystem.searchTimetableByDay(day);
+            statusLabel.setText(String.format("\u2705 Found %d lesson(s) for %s across all weeks.",
+                    results.size(), day.getDisplayName()));
+        }
+
         tableModel.setLessons(results);
-        statusLabel.setText(String.format("\u2705 Found %d lesson(s) for %s, Week %d.",
-                results.size(), day.getDisplayName(), week));
     }
 
     private void searchByExercise() {

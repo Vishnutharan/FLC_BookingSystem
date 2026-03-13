@@ -159,11 +159,10 @@ public class ReviewPanel extends JPanel {
         Member member = (Member) memberCombo.getSelectedItem();
         if (member == null)
             return;
-        List<Lesson> attendedLessons = member.getBookedLessons().stream()
-                .filter(member::hasAttended)
-                .collect(Collectors.toList());
-        tableModel.setLessons(attendedLessons);
-        statusLabel.setText(member.getName() + " has attended " + attendedLessons.size() + " session(s).");
+        List<Lesson> reviewableLessons = bookingSystem.getReviewableLessons(member);
+        tableModel.setLessons(reviewableLessons);
+        statusLabel.setText(member.getName() + " has " + reviewableLessons.size()
+                + " attended lesson(s) awaiting review.");
     }
 
     private void updateRatingDisplay() {
@@ -220,6 +219,7 @@ public class ReviewPanel extends JPanel {
                     "Review Submitted", JOptionPane.INFORMATION_MESSAGE);
             commentArea.setText("");
             ratingCombo.setSelectedIndex(4);
+            loadLessons();
         } catch (InvalidRatingException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(),
                     "Invalid Rating", JOptionPane.ERROR_MESSAGE);
