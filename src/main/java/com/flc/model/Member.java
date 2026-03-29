@@ -114,22 +114,29 @@ public class Member {
             throw new IllegalStateException("Cannot change an attended booking.");
         }
 
-        oldBooking.cancel();
-        oldLesson.removeMember(this);
+        if (findActiveBooking(newLesson) != null) {
+            throw new TimeConflictException("Member " + name + " is already booked into lesson "
+                    + newLesson.getLessonId() + ".");
+        }
 
+        if (hasTimeConflictExcluding(newLesson, oldLesson)) {
+            throw new TimeConflictException("Member " + name + " already has a booking on "
+                    + newLesson.getDay().getDisplayName() + " " + newLesson.getTimeSlot().getDisplayName()
+                    + " in Week " + newLesson.getWeekNumber() + ".");
+        }
+
+        if (!newLesson.isAvailable()) {
+            throw new LessonFullException("Lesson " + newLesson.getLessonId() + " is full (capacity: "
+                    + Lesson.MAX_CAPACITY + "). Cannot change booking for member " + name + ".");
+        }
+
+        oldLesson.removeMember(this);
         try {
-            if (hasTimeConflictExcluding(newLesson, oldLesson)) {
-                throw new TimeConflictException("Member " + name + " already has a booking on "
-                        + newLesson.getDay().getDisplayName() + " " + newLesson.getTimeSlot().getDisplayName()
-                        + " in Week " + newLesson.getWeekNumber() + ".");
-            }
             newLesson.bookMember(this);
-            bookings.add(new Booking(this, newLesson));
-        } catch (LessonFullException | TimeConflictException e) {
-            // Rollback to preserve original booking state
+            oldBooking.changeLesson(newLesson);
+        } catch (LessonFullException e) {
             try {
                 oldLesson.bookMember(this);
-                oldBooking.setStatus(BookingStatus.BOOKED);
             } catch (LessonFullException ex) {
                 throw new IllegalStateException("Rollback failed: " + ex.getMessage(), ex);
             }
@@ -201,10 +208,43 @@ public class Member {
      * @return active booked lessons (BOOKED or ATTENDED)
      */
     public List<Lesson> getBookedLessons() {
-        return bookings.stream()
-                .filter(Booking::isActive)
+        return getActiveBookings().stream()
                 .map(Booking::getLesson)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets the list of active bookings (booked, changed, or attended).
+     *
+     * @return active booking records
+     */
+    public List<Booking> getActiveBookings() {
+        return bookings.stream()
+                .filter(Booking::isActive)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets the list of bookings that can still be changed, cancelled, or attended.
+     *
+     * @return pending booking records
+     */
+    public List<Booking> getPendingBookings() {
+        return bookings.stream()
+                .filter(Booking::isActive)
+                .filter(booking -> booking.getStatus() == BookingStatus.BOOKED
+                        || booking.getStatus() == BookingStatus.CHANGED)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets the active booking for a specific lesson.
+     *
+     * @param lesson lesson to look up
+     * @return active booking or {@code null}
+     */
+    public Booking getActiveBookingForLesson(Lesson lesson) {
+        return findActiveBooking(lesson);
     }
 
     /**

@@ -383,7 +383,7 @@ public class MainFrame extends JFrame {
             case "BOOK":
                 return "Book a lesson with capacity and time-conflict validation";
             case "ATTENDANCE":
-                return "Mark completed lessons as attended";
+                return "Attend a lesson and capture the required review and rating";
             case "CHANGE":
                 return "Move a booking to another available lesson";
             case "CANCEL":
@@ -393,7 +393,7 @@ public class MainFrame extends JFrame {
             case "MEMBERS":
                 return "Inspect member profiles and current bookings";
             case "REPORTS":
-                return "Generate 4-week cycle reports and export them";
+                return "Generate monthly lesson reports and champion exercise reports";
             default:
                 return "";
         }

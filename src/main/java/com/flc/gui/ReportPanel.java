@@ -51,7 +51,7 @@ public class ReportPanel extends JPanel {
 
         JPanel cyclePanel = FLCTheme.createCardPanel();
         cyclePanel.setLayout(new BorderLayout(10, 0));
-        cyclePanel.add(FLCTheme.createFieldLabel("Select 4-Week Cycle:"), BorderLayout.WEST);
+        cyclePanel.add(FLCTheme.createFieldLabel("Select Month Block:"), BorderLayout.WEST);
 
         cycleCombo = new JComboBox<>();
         int cycleCount = Math.max(bookingSystem.getCycleCount(), 1);
@@ -61,7 +61,7 @@ public class ReportPanel extends JPanel {
         FLCTheme.styleComboBox(cycleCombo);
         cyclePanel.add(cycleCombo, BorderLayout.CENTER);
 
-        JLabel cycleHint = new JLabel("Each cycle covers 4 timetable weeks.");
+        JLabel cycleHint = new JLabel("Each month block covers 4 timetable weeks.");
         cycleHint.setFont(FLCTheme.FONT_SMALL);
         cycleHint.setForeground(FLCTheme.TEXT_SECONDARY);
         cyclePanel.add(cycleHint, BorderLayout.EAST);
@@ -77,14 +77,14 @@ public class ReportPanel extends JPanel {
                 FLCTheme.PURPLE,
                 this::generateRequirementAudit));
         actionsRow.add(createReportCard(
-                "Attendance and Rating",
-                "Report 1 for the selected 4-week cycle",
+                "Monthly Lesson Report",
+                "Attendance counts and average ratings for the selected month block",
                 FLCTheme.STATS_BLUE_BG,
                 FLCTheme.PRIMARY,
                 this::generateAttendanceReport));
         actionsRow.add(createReportCard(
-                "Income by Exercise",
-                "Report 2 and highest-income exercise type",
+                "Champion Exercise Type",
+                "Income totals and highest-income type for the selected month block",
                 FLCTheme.STATS_GREEN_BG,
                 FLCTheme.SUCCESS,
                 this::generateIncomeReport));
@@ -195,7 +195,7 @@ public class ReportPanel extends JPanel {
         String report = bookingSystem.generateAttendanceReportForCycle(cycle);
         reportArea.setText(report);
         reportArea.setCaretPosition(0);
-        currentReportType = "Attendance_Rating_Report_Cycle_" + cycle;
+        currentReportType = "Monthly_Lesson_Report_Month_" + String.format("%02d", cycle);
     }
 
     private void generateIncomeReport() {
@@ -203,7 +203,7 @@ public class ReportPanel extends JPanel {
         String report = bookingSystem.generateIncomeReportForCycle(cycle);
         reportArea.setText(report);
         reportArea.setCaretPosition(0);
-        currentReportType = "Income_Report_Cycle_" + cycle;
+        currentReportType = "Monthly_Champion_Exercise_Report_Month_" + String.format("%02d", cycle);
     }
 
     private void exportToTxt() {

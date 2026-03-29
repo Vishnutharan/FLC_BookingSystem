@@ -2,22 +2,29 @@ package com.flc.gui;
 
 import com.flc.exception.LessonFullException;
 import com.flc.exception.TimeConflictException;
-import com.flc.model.*;
+import com.flc.model.Booking;
+import com.flc.model.DayOfWeek;
+import com.flc.model.Lesson;
+import com.flc.model.Member;
+import com.flc.model.TimeSlot;
 import com.flc.service.BookingSystem;
-
-import javax.swing.*;
-import javax.swing.table.AbstractTableModel;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import javax.swing.JComboBox;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JSplitPane;
+import javax.swing.JTable;
+import javax.swing.ListSelectionModel;
+import javax.swing.table.AbstractTableModel;
 
 /**
- * Panel for changing an existing booking. Allows selecting a member,
- * viewing their current bookings, and changing to a different available lesson.
- *
- * @author FLC Development Team
+ * Panel for changing an existing booking while preserving its booking ID.
  */
 public class ChangeBookingPanel extends JPanel {
 
@@ -42,31 +49,29 @@ public class ChangeBookingPanel extends JPanel {
     private void buildUI() {
         JPanel content = UIHelper.createContentPanel();
 
-        // ─── Top: Member Selector ────────────────────────────────
         JPanel topCard = FLCTheme.createCardPanel();
         topCard.setLayout(new FlowLayout(FlowLayout.LEFT, 12, 5));
         memberCombo = new JComboBox<>();
-        for (Member m : bookingSystem.getMembers())
-            memberCombo.addItem(m);
+        for (Member member : bookingSystem.getMembers()) {
+            memberCombo.addItem(member);
+        }
         FLCTheme.styleComboBox(memberCombo);
         topCard.add(FLCTheme.createFieldLabel("Member:"));
         topCard.add(memberCombo);
-        JButton loadBtn = FLCTheme.createPrimaryButton("\uD83D\uDD04  Load My Bookings");
+        javax.swing.JButton loadBtn = FLCTheme.createPrimaryButton("\uD83D\uDD04  Load Changeable Bookings");
         loadBtn.addActionListener(e -> loadCurrentBookings());
         topCard.add(loadBtn);
         content.add(topCard, BorderLayout.NORTH);
 
-        // ─── Center: Split ───────────────────────────────────────
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        splitPane.setResizeWeight(0.4);
+        splitPane.setResizeWeight(0.42);
         splitPane.setBorder(null);
         splitPane.setDividerSize(8);
 
-        // Current bookings card
         JPanel currentCard = FLCTheme.createCardPanel();
         currentCard.setLayout(new BorderLayout(0, 8));
         currentCard.add(
-                FLCTheme.createSectionHeader("\uD83D\uDCCB", "Current Bookings  \u2014  Select the one to change FROM"),
+                FLCTheme.createSectionHeader("\uD83D\uDCCB", "Current Bookings  \u2014  Select the booking to change"),
                 BorderLayout.NORTH);
         currentBookingsModel = new BookingTableModel();
         currentBookingsTable = new JTable(currentBookingsModel);
@@ -74,25 +79,26 @@ public class ChangeBookingPanel extends JPanel {
         currentCard.add(FLCTheme.createStyledScrollPane(currentBookingsTable), BorderLayout.CENTER);
         splitPane.setTopComponent(currentCard);
 
-        // New lesson finder card
         JPanel newCard = FLCTheme.createCardPanel();
         newCard.setLayout(new BorderLayout(0, 8));
         newCard.add(
-                FLCTheme.createSectionHeader("\uD83D\uDD0D", "Find New Lesson  \u2014  Select the one to change TO"),
+                FLCTheme.createSectionHeader("\uD83D\uDD0D", "Find a Replacement Lesson"),
                 BorderLayout.NORTH);
 
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
         filterPanel.setOpaque(false);
         newWeekCombo = new JComboBox<>();
-        for (int i = 1; i <= Math.max(bookingSystem.getWeekCount(), 1); i++)
-            newWeekCombo.addItem(i);
+        for (int week = 1; week <= Math.max(bookingSystem.getWeekCount(), 1); week++) {
+            newWeekCombo.addItem(week);
+        }
         FLCTheme.styleComboBox(newWeekCombo);
         newDayCombo = new JComboBox<>(DayOfWeek.values());
         FLCTheme.styleComboBox(newDayCombo);
         newTimeCombo = new JComboBox<>();
         newTimeCombo.addItem("All");
-        for (TimeSlot ts : TimeSlot.values())
-            newTimeCombo.addItem(ts.getDisplayName());
+        for (TimeSlot slot : TimeSlot.values()) {
+            newTimeCombo.addItem(slot.getDisplayName());
+        }
         FLCTheme.styleComboBox(newTimeCombo);
 
         filterPanel.add(FLCTheme.createFieldLabel("Week:"));
@@ -101,8 +107,8 @@ public class ChangeBookingPanel extends JPanel {
         filterPanel.add(newDayCombo);
         filterPanel.add(FLCTheme.createFieldLabel("Time:"));
         filterPanel.add(newTimeCombo);
-        JButton findBtn = FLCTheme.createPrimaryButton("Find Available");
-        findBtn.addActionListener(e -> findAvailableLessons());
+        javax.swing.JButton findBtn = FLCTheme.createPrimaryButton("Find Lessons");
+        findBtn.addActionListener(e -> findMatchingLessons());
         filterPanel.add(findBtn);
 
         JPanel newContent = new JPanel(new BorderLayout(0, 8));
@@ -118,38 +124,44 @@ public class ChangeBookingPanel extends JPanel {
 
         content.add(splitPane, BorderLayout.CENTER);
 
-        // ─── Bottom: Confirm Button ──────────────────────────────
-        JButton confirmBtn = FLCTheme.createPrimaryButton("\u2714  Confirm Change");
-        content.add(UIHelper.createActionPanel(confirmBtn), BorderLayout.SOUTH);
+        javax.swing.JButton confirmBtn = FLCTheme.createPrimaryButton("\u2714  Confirm Change");
         confirmBtn.addActionListener(e -> confirmChange());
+        content.add(UIHelper.createActionPanel(confirmBtn), BorderLayout.SOUTH);
 
         add(content, BorderLayout.CENTER);
     }
 
     private void loadCurrentBookings() {
         Member member = (Member) memberCombo.getSelectedItem();
-        if (member == null)
+        if (member == null) {
             return;
-        currentBookingsModel.setLessons(member.getBookedLessons().stream()
-                .filter(lesson -> member.getBookingStatus(lesson) == BookingStatus.BOOKED)
-                .collect(Collectors.toList()));
+        }
+
+        List<Booking> pendingBookings = member.getPendingBookings().stream()
+                .sorted(Comparator.comparing((Booking booking) -> booking.getLesson().getWeekNumber())
+                        .thenComparing(booking -> booking.getLesson().getDay().ordinal())
+                        .thenComparing(booking -> booking.getLesson().getTimeSlot().ordinal()))
+                .collect(Collectors.toList());
+        currentBookingsModel.setBookings(pendingBookings);
     }
 
-    private void findAvailableLessons() {
+    private void findMatchingLessons() {
         int week = (Integer) newWeekCombo.getSelectedItem();
         DayOfWeek day = (DayOfWeek) newDayCombo.getSelectedItem();
         String timeFilter = (String) newTimeCombo.getSelectedItem();
 
-        List<Lesson> lessons = bookingSystem.getTimetable()
-                .getLessonsByWeekAndDay(week, day).stream()
-                .filter(Lesson::isAvailable).collect(Collectors.toList());
-
+        List<Lesson> lessons = bookingSystem.getTimetable().getLessonsByWeekAndDay(week, day);
         if (!"All".equals(timeFilter)) {
             lessons = lessons.stream()
-                    .filter(l -> l.getTimeSlot().getDisplayName().equals(timeFilter))
+                    .filter(lesson -> lesson.getTimeSlot().getDisplayName().equals(timeFilter))
                     .collect(Collectors.toList());
         }
-        availableModel.setLessons(lessons);
+
+        availableModel.setLessons(lessons.stream()
+                .sorted(Comparator.comparingInt(Lesson::getWeekNumber)
+                        .thenComparing(lesson -> lesson.getDay().ordinal())
+                        .thenComparing(lesson -> lesson.getTimeSlot().ordinal()))
+                .collect(Collectors.toList()));
     }
 
     private void confirmChange() {
@@ -162,39 +174,43 @@ public class ChangeBookingPanel extends JPanel {
 
         int currentRow = currentBookingsTable.getSelectedRow();
         if (currentRow < 0) {
-            JOptionPane.showMessageDialog(this, "Please select a current booking to change FROM.",
+            JOptionPane.showMessageDialog(this, "Please select the booking you want to change.",
                     "Validation Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
         int newRow = availableLessonsTable.getSelectedRow();
         if (newRow < 0) {
-            JOptionPane.showMessageDialog(this, "Please select a new lesson to change TO.",
+            JOptionPane.showMessageDialog(this, "Please select a replacement lesson.",
                     "Validation Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        int modelCurrentRow = currentBookingsTable.convertRowIndexToModel(currentRow);
-        int modelNewRow = availableLessonsTable.convertRowIndexToModel(newRow);
-
-        Lesson oldLesson = currentBookingsModel.getLessonAt(modelCurrentRow);
-        Lesson newLesson = availableModel.getLessonAt(modelNewRow);
+        Booking booking = currentBookingsModel.getBookingAt(currentBookingsTable.convertRowIndexToModel(currentRow));
+        Lesson oldLesson = booking.getLesson();
+        Lesson newLesson = availableModel.getLessonAt(availableLessonsTable.convertRowIndexToModel(newRow));
 
         if (oldLesson.getLessonId().equals(newLesson.getLessonId())) {
             JOptionPane.showMessageDialog(this,
-                    "Cannot change to the same lesson. Please select a different lesson.",
+                    "Cannot change to the same lesson. Please choose a different lesson.",
                     "Invalid Change", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
         try {
+            String bookingId = booking.getBookingId();
             bookingSystem.changeBooking(member, oldLesson, newLesson);
             JOptionPane.showMessageDialog(this,
-                    String.format("Booking changed successfully!\nFrom: %s\nTo: %s",
-                            oldLesson.toString(), newLesson.toString()),
+                    String.format("Booking %s changed successfully.\nNew lesson: %s (%s - %s %s, Week %d)",
+                            bookingId,
+                            newLesson.getLessonId(),
+                            newLesson.getExerciseType().getDisplayName(),
+                            newLesson.getDay().getDisplayName(),
+                            newLesson.getTimeSlot().getDisplayName(),
+                            newLesson.getWeekNumber()),
                     "Change Successful", JOptionPane.INFORMATION_MESSAGE);
             loadCurrentBookings();
-            findAvailableLessons();
+            findMatchingLessons();
         } catch (LessonFullException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(),
                     "Lesson Full", JOptionPane.ERROR_MESSAGE);
@@ -205,12 +221,13 @@ public class ChangeBookingPanel extends JPanel {
     }
 
     private static class BookingTableModel extends AbstractTableModel {
-        private static final String[] COLUMNS = { "Lesson ID", "Exercise", "Day", "Time", "Week", "Booked" };
-        private List<Lesson> lessons = new ArrayList<>();
+        private static final String[] COLUMNS = { "Booking ID", "Lesson ID", "Exercise", "Day", "Time", "Week",
+                "Status" };
+        private List<Booking> bookings = new ArrayList<>();
 
         @Override
         public int getRowCount() {
-            return lessons.size();
+            return bookings.size();
         }
 
         @Override
@@ -230,38 +247,41 @@ public class ChangeBookingPanel extends JPanel {
 
         @Override
         public Object getValueAt(int row, int col) {
-            Lesson l = lessons.get(row);
+            Booking booking = bookings.get(row);
+            Lesson lesson = booking.getLesson();
             switch (col) {
                 case 0:
-                    return l.getLessonId();
+                    return booking.getBookingId();
                 case 1:
-                    return l.getExerciseType().getDisplayName();
+                    return lesson.getLessonId();
                 case 2:
-                    return l.getDay().getDisplayName();
+                    return lesson.getExerciseType().getDisplayName();
                 case 3:
-                    return l.getTimeSlot().getDisplayName();
+                    return lesson.getDay().getDisplayName();
                 case 4:
-                    return l.getWeekNumber();
+                    return lesson.getTimeSlot().getDisplayName();
                 case 5:
-                    return l.getBookedMembers().size() + "/4";
+                    return lesson.getWeekNumber();
+                case 6:
+                    return booking.getStatus().getDisplayName();
                 default:
                     return "";
             }
         }
 
-        public void setLessons(List<Lesson> lessons) {
-            this.lessons = lessons;
+        public void setBookings(List<Booking> bookings) {
+            this.bookings = new ArrayList<>(bookings);
             fireTableDataChanged();
         }
 
-        public Lesson getLessonAt(int row) {
-            return lessons.get(row);
+        public Booking getBookingAt(int row) {
+            return bookings.get(row);
         }
     }
 
     private static class AvailableLessonTableModel extends AbstractTableModel {
         private static final String[] COLUMNS = { "Lesson ID", "Exercise", "Day", "Time", "Week", "Spaces Left",
-                "Price" };
+                "Price", "Status" };
         private final DecimalFormat df = new DecimalFormat("0.00");
         private List<Lesson> lessons = new ArrayList<>();
 
@@ -287,29 +307,31 @@ public class ChangeBookingPanel extends JPanel {
 
         @Override
         public Object getValueAt(int row, int col) {
-            Lesson l = lessons.get(row);
+            Lesson lesson = lessons.get(row);
             switch (col) {
                 case 0:
-                    return l.getLessonId();
+                    return lesson.getLessonId();
                 case 1:
-                    return l.getExerciseType().getDisplayName();
+                    return lesson.getExerciseType().getDisplayName();
                 case 2:
-                    return l.getDay().getDisplayName();
+                    return lesson.getDay().getDisplayName();
                 case 3:
-                    return l.getTimeSlot().getDisplayName();
+                    return lesson.getTimeSlot().getDisplayName();
                 case 4:
-                    return l.getWeekNumber();
+                    return lesson.getWeekNumber();
                 case 5:
-                    return l.getAvailableSpaces();
+                    return lesson.getAvailableSpaces();
                 case 6:
-                    return "\u00A3" + df.format(l.getExerciseType().getPrice());
+                    return "\u00A3" + df.format(lesson.getExerciseType().getPrice());
+                case 7:
+                    return lesson.isAvailable() ? "Available" : "Full";
                 default:
                     return "";
             }
         }
 
         public void setLessons(List<Lesson> lessons) {
-            this.lessons = lessons;
+            this.lessons = new ArrayList<>(lessons);
             fireTableDataChanged();
         }
 

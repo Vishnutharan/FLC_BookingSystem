@@ -126,15 +126,15 @@ public class MemberPanel extends JPanel {
                         + "</div></html>",
                 member.getMemberId(), member.getName(), member.getEmail()));
 
-        bookingsTableModel.setLessons(new ArrayList<>(member.getBookedLessons()));
+        bookingsTableModel.setBookings(new ArrayList<>(member.getActiveBookings()));
 
         DecimalFormat df = new DecimalFormat("0.00");
         double totalSpent = 0;
-        for (Lesson l : member.getBookedLessons()) {
-            totalSpent += l.getExerciseType().getPrice();
+        for (Booking booking : member.getActiveBookings()) {
+            totalSpent += booking.getLesson().getExerciseType().getPrice();
         }
         summaryLabel.setText(String.format("\uD83D\uDCB0 Total lessons booked: %d  |  Total amount spent: \u00A3%s",
-                member.getBookedLessons().size(), df.format(totalSpent)));
+                member.getActiveBookings().size(), df.format(totalSpent)));
     }
 
     private void addNewMember() {
@@ -236,13 +236,14 @@ public class MemberPanel extends JPanel {
     }
 
     private static class MemberBookingsTableModel extends AbstractTableModel {
-        private static final String[] COLUMNS = { "Lesson ID", "Exercise", "Day", "Time Slot", "Week", "Price" };
+        private static final String[] COLUMNS = { "Booking ID", "Lesson ID", "Exercise", "Day", "Time Slot",
+                "Week", "Status", "Price" };
         private final DecimalFormat df = new DecimalFormat("0.00");
-        private List<Lesson> lessons = new ArrayList<>();
+        private List<Booking> bookings = new ArrayList<>();
 
         @Override
         public int getRowCount() {
-            return lessons.size();
+            return bookings.size();
         }
 
         @Override
@@ -262,27 +263,32 @@ public class MemberPanel extends JPanel {
 
         @Override
         public Object getValueAt(int row, int col) {
-            Lesson l = lessons.get(row);
+            Booking booking = bookings.get(row);
+            Lesson lesson = booking.getLesson();
             switch (col) {
                 case 0:
-                    return l.getLessonId();
+                    return booking.getBookingId();
                 case 1:
-                    return l.getExerciseType().getDisplayName();
+                    return lesson.getLessonId();
                 case 2:
-                    return l.getDay().getDisplayName();
+                    return lesson.getExerciseType().getDisplayName();
                 case 3:
-                    return l.getTimeSlot().getDisplayName();
+                    return lesson.getDay().getDisplayName();
                 case 4:
-                    return l.getWeekNumber();
+                    return lesson.getTimeSlot().getDisplayName();
                 case 5:
-                    return "\u00A3" + df.format(l.getExerciseType().getPrice());
+                    return lesson.getWeekNumber();
+                case 6:
+                    return booking.getStatus().getDisplayName();
+                case 7:
+                    return "\u00A3" + df.format(lesson.getExerciseType().getPrice());
                 default:
                     return "";
             }
         }
 
-        public void setLessons(List<Lesson> lessons) {
-            this.lessons = lessons;
+        public void setBookings(List<Booking> bookings) {
+            this.bookings = bookings;
             fireTableDataChanged();
         }
     }

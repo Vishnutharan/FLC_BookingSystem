@@ -1,19 +1,24 @@
 package com.flc.gui;
 
-import com.flc.model.*;
+import com.flc.model.Booking;
+import com.flc.model.Lesson;
+import com.flc.model.Member;
 import com.flc.service.BookingSystem;
-
-import javax.swing.*;
-import javax.swing.table.AbstractTableModel;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
+import javax.swing.JComboBox;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTable;
+import javax.swing.ListSelectionModel;
+import javax.swing.table.AbstractTableModel;
 
 /**
- * Panel for cancelling an existing booking. Shows a member's current bookings
- * and allows cancellation with a confirmation dialog.
- *
- * @author FLC Development Team
+ * Panel for cancelling a pending booking.
  */
 public class CancelBookingPanel extends JPanel {
 
@@ -21,7 +26,7 @@ public class CancelBookingPanel extends JPanel {
     private JComboBox<Member> memberCombo;
     private JTable bookingsTable;
     private CancelTableModel tableModel;
-    private JLabel statusLabel;
+    private javax.swing.JLabel statusLabel;
 
     public CancelBookingPanel(BookingSystem bookingSystem) {
         this.bookingSystem = bookingSystem;
@@ -34,38 +39,35 @@ public class CancelBookingPanel extends JPanel {
     private void buildUI() {
         JPanel content = UIHelper.createContentPanel();
 
-        // ─── Top: Member Selector ────────────────────────────────
         JPanel topCard = FLCTheme.createCardPanel();
         topCard.setLayout(new FlowLayout(FlowLayout.LEFT, 12, 5));
         memberCombo = new JComboBox<>();
-        for (Member m : bookingSystem.getMembers())
-            memberCombo.addItem(m);
+        for (Member member : bookingSystem.getMembers()) {
+            memberCombo.addItem(member);
+        }
         FLCTheme.styleComboBox(memberCombo);
         topCard.add(FLCTheme.createFieldLabel("Member:"));
         topCard.add(memberCombo);
-        JButton loadBtn = FLCTheme.createPrimaryButton("\uD83D\uDD04  Load My Bookings");
+        javax.swing.JButton loadBtn = FLCTheme.createPrimaryButton("\uD83D\uDD04  Load Cancelable Bookings");
         loadBtn.addActionListener(e -> loadBookings());
         topCard.add(loadBtn);
         content.add(topCard, BorderLayout.NORTH);
 
-        // ─── Center: Bookings Table ──────────────────────────────
         JPanel tableCard = FLCTheme.createCardPanel();
         tableCard.setLayout(new BorderLayout(0, 10));
-        tableCard.add(FLCTheme.createSectionHeader("\uD83D\uDCCB", "Your Bookings"), BorderLayout.NORTH);
+        tableCard.add(FLCTheme.createSectionHeader("\uD83D\uDCCB", "Pending Bookings"), BorderLayout.NORTH);
 
         tableModel = new CancelTableModel();
         bookingsTable = new JTable(tableModel);
         bookingsTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         tableCard.add(FLCTheme.createStyledScrollPane(bookingsTable), BorderLayout.CENTER);
 
-        // Bottom bar
         JPanel bottomBar = new JPanel(new BorderLayout(10, 0));
         bottomBar.setOpaque(false);
-
-        statusLabel = FLCTheme.createStatusLabel("Select a member and load their bookings.");
+        statusLabel = FLCTheme.createStatusLabel("Select a member and load their pending bookings.");
         bottomBar.add(statusLabel, BorderLayout.CENTER);
 
-        JButton cancelBtn = FLCTheme.createDangerButton("\u274C  Cancel Selected Booking");
+        javax.swing.JButton cancelBtn = FLCTheme.createDangerButton("\u274C  Cancel Selected Booking");
         cancelBtn.addActionListener(e -> cancelSelectedBooking());
         bottomBar.add(cancelBtn, BorderLayout.EAST);
 
@@ -77,13 +79,17 @@ public class CancelBookingPanel extends JPanel {
 
     private void loadBookings() {
         Member member = (Member) memberCombo.getSelectedItem();
-        if (member == null)
+        if (member == null) {
             return;
-        List<Lesson> cancelableLessons = member.getBookedLessons().stream()
-                .filter(lesson -> member.getBookingStatus(lesson) == BookingStatus.BOOKED)
-                .collect(java.util.stream.Collectors.toList());
-        tableModel.setLessons(cancelableLessons);
-        statusLabel.setText(member.getName() + " has " + cancelableLessons.size() + " cancelable booking(s).");
+        }
+
+        List<Booking> cancelableBookings = member.getPendingBookings().stream()
+                .sorted(Comparator.comparing((Booking booking) -> booking.getLesson().getWeekNumber())
+                        .thenComparing(booking -> booking.getLesson().getDay().ordinal())
+                        .thenComparing(booking -> booking.getLesson().getTimeSlot().ordinal()))
+                .collect(Collectors.toList());
+        tableModel.setBookings(cancelableBookings);
+        statusLabel.setText(member.getName() + " has " + cancelableBookings.size() + " cancelable booking(s).");
     }
 
     private void cancelSelectedBooking() {
@@ -101,11 +107,12 @@ public class CancelBookingPanel extends JPanel {
             return;
         }
 
-        int modelRow = bookingsTable.convertRowIndexToModel(selectedRow);
-        Lesson lesson = tableModel.getLessonAt(modelRow);
+        Booking booking = tableModel.getBookingAt(bookingsTable.convertRowIndexToModel(selectedRow));
+        Lesson lesson = booking.getLesson();
 
         int confirm = JOptionPane.showConfirmDialog(this,
-                String.format("Are you sure you want to cancel your booking for:\n%s\n(%s - %s %s, Week %d)?",
+                String.format("Cancel booking %s for:\n%s (%s - %s %s, Week %d)?",
+                        booking.getBookingId(),
                         lesson.getLessonId(),
                         lesson.getExerciseType().getDisplayName(),
                         lesson.getDay().getDisplayName(),
@@ -116,7 +123,8 @@ public class CancelBookingPanel extends JPanel {
         if (confirm == JOptionPane.YES_OPTION) {
             try {
                 bookingSystem.cancelBooking(member, lesson);
-                JOptionPane.showMessageDialog(this, "Booking cancelled successfully.",
+                JOptionPane.showMessageDialog(this,
+                        "Booking " + booking.getBookingId() + " cancelled successfully.",
                         "Cancellation Successful", JOptionPane.INFORMATION_MESSAGE);
                 loadBookings();
             } catch (IllegalStateException ex) {
@@ -127,12 +135,13 @@ public class CancelBookingPanel extends JPanel {
     }
 
     private static class CancelTableModel extends AbstractTableModel {
-        private static final String[] COLUMNS = { "Lesson ID", "Exercise", "Day", "Time Slot", "Week", "Booked" };
-        private List<Lesson> lessons = new ArrayList<>();
+        private static final String[] COLUMNS = { "Booking ID", "Lesson ID", "Exercise", "Day", "Time Slot",
+                "Week", "Status" };
+        private List<Booking> bookings = new ArrayList<>();
 
         @Override
         public int getRowCount() {
-            return lessons.size();
+            return bookings.size();
         }
 
         @Override
@@ -152,32 +161,35 @@ public class CancelBookingPanel extends JPanel {
 
         @Override
         public Object getValueAt(int row, int col) {
-            Lesson l = lessons.get(row);
+            Booking booking = bookings.get(row);
+            Lesson lesson = booking.getLesson();
             switch (col) {
                 case 0:
-                    return l.getLessonId();
+                    return booking.getBookingId();
                 case 1:
-                    return l.getExerciseType().getDisplayName();
+                    return lesson.getLessonId();
                 case 2:
-                    return l.getDay().getDisplayName();
+                    return lesson.getExerciseType().getDisplayName();
                 case 3:
-                    return l.getTimeSlot().getDisplayName();
+                    return lesson.getDay().getDisplayName();
                 case 4:
-                    return l.getWeekNumber();
+                    return lesson.getTimeSlot().getDisplayName();
                 case 5:
-                    return l.getBookedMembers().size() + "/4";
+                    return lesson.getWeekNumber();
+                case 6:
+                    return booking.getStatus().getDisplayName();
                 default:
                     return "";
             }
         }
 
-        public void setLessons(List<Lesson> lessons) {
-            this.lessons = lessons;
+        public void setBookings(List<Booking> bookings) {
+            this.bookings = new ArrayList<>(bookings);
             fireTableDataChanged();
         }
 
-        public Lesson getLessonAt(int row) {
-            return lessons.get(row);
+        public Booking getBookingAt(int row) {
+            return bookings.get(row);
         }
     }
 }

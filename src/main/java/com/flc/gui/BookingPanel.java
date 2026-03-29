@@ -2,33 +2,45 @@ package com.flc.gui;
 
 import com.flc.exception.LessonFullException;
 import com.flc.exception.TimeConflictException;
-import com.flc.model.*;
+import com.flc.model.DayOfWeek;
+import com.flc.model.ExerciseType;
+import com.flc.model.Lesson;
+import com.flc.model.Member;
 import com.flc.service.BookingSystem;
-
-import javax.swing.*;
-import javax.swing.table.AbstractTableModel;
-import java.awt.*;
+import com.flc.service.Timetable;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.FlowLayout;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import javax.swing.ButtonGroup;
+import javax.swing.JComboBox;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JRadioButton;
+import javax.swing.JTable;
+import javax.swing.ListSelectionModel;
+import javax.swing.table.AbstractTableModel;
 
 /**
- * Panel for booking a new lesson. Allows selecting a member, filtering
- * available lessons by week/day/time, and booking with full validation.
- *
- * @author FLC Development Team
+ * Panel for booking a lesson after searching the timetable by day or exercise
+ * type, matching the coursework flow more closely.
  */
 public class BookingPanel extends JPanel {
 
     private final BookingSystem bookingSystem;
     private JComboBox<Member> memberCombo;
-    private JComboBox<Integer> weekCombo;
+    private JRadioButton searchByDayRadio;
+    private JRadioButton searchByExerciseRadio;
+    private JComboBox<Object> weekCombo;
     private JComboBox<DayOfWeek> dayCombo;
-    private JComboBox<String> timeSlotCombo;
+    private JComboBox<ExerciseType> exerciseCombo;
     private JTable lessonTable;
     private LessonTableModel tableModel;
-    private JLabel statusLabel;
+    private javax.swing.JLabel statusLabel;
 
     public BookingPanel(BookingSystem bookingSystem) {
         this.bookingSystem = bookingSystem;
@@ -41,67 +53,80 @@ public class BookingPanel extends JPanel {
     private void buildUI() {
         JPanel content = UIHelper.createContentPanel();
 
-        // ─── Controls Card ───────────────────────────────────────
-        JPanel controlCard = FLCTheme.createCardPanel();
-        controlCard.setLayout(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 8, 5, 8);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
+        JPanel topCard = FLCTheme.createCardPanel();
+        topCard.setLayout(new BorderLayout(0, 10));
 
-        // Member
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        controlCard.add(FLCTheme.createFieldLabel("Member:"), gbc);
-        gbc.gridx = 1;
+        JPanel memberRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        memberRow.setOpaque(false);
         memberCombo = new JComboBox<>();
         refreshMemberCombo();
         FLCTheme.styleComboBox(memberCombo);
-        controlCard.add(memberCombo, gbc);
+        memberRow.add(FLCTheme.createFieldLabel("Member:"));
+        memberRow.add(memberCombo);
+        topCard.add(memberRow, BorderLayout.NORTH);
 
-        // Week
-        gbc.gridx = 2;
-        gbc.gridy = 0;
-        controlCard.add(FLCTheme.createFieldLabel("Week:"), gbc);
-        gbc.gridx = 3;
+        JPanel searchSection = new JPanel(new BorderLayout(0, 8));
+        searchSection.setOpaque(false);
+
+        JPanel radioPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 0));
+        radioPanel.setOpaque(false);
+        searchByDayRadio = new JRadioButton("Search by Day", true);
+        searchByExerciseRadio = new JRadioButton("Search by Exercise");
+        searchByDayRadio.setFont(FLCTheme.FONT_BODY_BOLD);
+        searchByExerciseRadio.setFont(FLCTheme.FONT_BODY_BOLD);
+        searchByDayRadio.setForeground(FLCTheme.TEXT_PRIMARY);
+        searchByExerciseRadio.setForeground(FLCTheme.TEXT_PRIMARY);
+        searchByDayRadio.setOpaque(false);
+        searchByExerciseRadio.setOpaque(false);
+        ButtonGroup group = new ButtonGroup();
+        group.add(searchByDayRadio);
+        group.add(searchByExerciseRadio);
+        radioPanel.add(searchByDayRadio);
+        radioPanel.add(searchByExerciseRadio);
+        searchSection.add(radioPanel, BorderLayout.NORTH);
+
+        JPanel searchFields = new JPanel(new CardLayout());
+        searchFields.setOpaque(false);
+
+        JPanel dayPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        dayPanel.setOpaque(false);
         weekCombo = new JComboBox<>();
-        for (int i = 1; i <= Math.max(bookingSystem.getWeekCount(), 1); i++)
-            weekCombo.addItem(i);
+        weekCombo.addItem("All Weeks");
+        for (int week = 1; week <= Math.max(bookingSystem.getWeekCount(), 1); week++) {
+            weekCombo.addItem(week);
+        }
         FLCTheme.styleComboBox(weekCombo);
-        controlCard.add(weekCombo, gbc);
-
-        // Day
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        controlCard.add(FLCTheme.createFieldLabel("Day:"), gbc);
-        gbc.gridx = 1;
         dayCombo = new JComboBox<>(DayOfWeek.values());
         FLCTheme.styleComboBox(dayCombo);
-        controlCard.add(dayCombo, gbc);
+        dayPanel.add(FLCTheme.createFieldLabel("Day:"));
+        dayPanel.add(dayCombo);
+        dayPanel.add(FLCTheme.createFieldLabel("Week:"));
+        dayPanel.add(weekCombo);
+        javax.swing.JButton daySearchBtn = FLCTheme.createPrimaryButton("Find Lessons");
+        daySearchBtn.addActionListener(e -> searchByDay());
+        dayPanel.add(daySearchBtn);
 
-        // Time Slot
-        gbc.gridx = 2;
-        gbc.gridy = 1;
-        controlCard.add(FLCTheme.createFieldLabel("Time Slot:"), gbc);
-        gbc.gridx = 3;
-        timeSlotCombo = new JComboBox<>();
-        timeSlotCombo.addItem("All");
-        for (TimeSlot ts : TimeSlot.values())
-            timeSlotCombo.addItem(ts.getDisplayName());
-        FLCTheme.styleComboBox(timeSlotCombo);
-        controlCard.add(timeSlotCombo, gbc);
+        JPanel exercisePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        exercisePanel.setOpaque(false);
+        exerciseCombo = new JComboBox<>(ExerciseType.values());
+        FLCTheme.styleComboBox(exerciseCombo);
+        exercisePanel.add(FLCTheme.createFieldLabel("Exercise:"));
+        exercisePanel.add(exerciseCombo);
+        javax.swing.JButton exerciseSearchBtn = FLCTheme.createPrimaryButton("Find Lessons");
+        exerciseSearchBtn.addActionListener(e -> searchByExercise());
+        exercisePanel.add(exerciseSearchBtn);
 
-        // Search button
-        gbc.gridx = 4;
-        gbc.gridy = 0;
-        gbc.gridheight = 2;
-        gbc.fill = GridBagConstraints.BOTH;
-        JButton searchBtn = FLCTheme.createPrimaryButton("\uD83D\uDD0D  Search Available");
-        searchBtn.addActionListener(e -> searchAvailableLessons());
-        controlCard.add(searchBtn, gbc);
+        searchFields.add(dayPanel, "DAY");
+        searchFields.add(exercisePanel, "EXERCISE");
+        searchSection.add(searchFields, BorderLayout.CENTER);
 
-        content.add(controlCard, BorderLayout.NORTH);
+        CardLayout searchCards = (CardLayout) searchFields.getLayout();
+        searchByDayRadio.addActionListener(e -> searchCards.show(searchFields, "DAY"));
+        searchByExerciseRadio.addActionListener(e -> searchCards.show(searchFields, "EXERCISE"));
 
-        // ─── Results Card ────────────────────────────────────────
+        topCard.add(searchSection, BorderLayout.CENTER);
+        content.add(topCard, BorderLayout.NORTH);
+
         JPanel tableCard = FLCTheme.createCardPanel();
         tableCard.setLayout(new BorderLayout(0, 10));
 
@@ -109,17 +134,15 @@ public class BookingPanel extends JPanel {
         lessonTable = new JTable(tableModel);
         lessonTable.setAutoCreateRowSorter(true);
         lessonTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        JScrollPane scrollPane = FLCTheme.createStyledScrollPane(lessonTable);
-        tableCard.add(scrollPane, BorderLayout.CENTER);
+        tableCard.add(FLCTheme.createStyledScrollPane(lessonTable), BorderLayout.CENTER);
 
-        // Bottom bar
         JPanel bottomBar = new JPanel(new BorderLayout(10, 0));
         bottomBar.setOpaque(false);
-
-        statusLabel = FLCTheme.createStatusLabel("Select a member and search for available lessons.");
+        statusLabel = FLCTheme.createStatusLabel(
+                "Search by Saturday/Sunday or exercise type, then select a lesson to book.");
         bottomBar.add(statusLabel, BorderLayout.CENTER);
 
-        JButton bookBtn = FLCTheme.createSuccessButton("\u2714  Book Selected Lesson");
+        javax.swing.JButton bookBtn = FLCTheme.createSuccessButton("\u2714  Book Selected Lesson");
         bookBtn.addActionListener(e -> bookSelectedLesson());
         bottomBar.add(bookBtn, BorderLayout.EAST);
 
@@ -131,27 +154,45 @@ public class BookingPanel extends JPanel {
 
     private void refreshMemberCombo() {
         memberCombo.removeAllItems();
-        for (Member m : bookingSystem.getMembers())
-            memberCombo.addItem(m);
+        for (Member member : bookingSystem.getMembers()) {
+            memberCombo.addItem(member);
+        }
     }
 
-    private void searchAvailableLessons() {
-        int week = (Integer) weekCombo.getSelectedItem();
+    private void searchByDay() {
         DayOfWeek day = (DayOfWeek) dayCombo.getSelectedItem();
-        String timeFilter = (String) timeSlotCombo.getSelectedItem();
+        Object selectedWeek = weekCombo.getSelectedItem();
+        Timetable timetable = bookingSystem.getTimetable();
+        List<Lesson> lessons;
 
-        List<Lesson> lessons = bookingSystem.getTimetable()
-                .getLessonsByWeekAndDay(week, day).stream()
-                .filter(Lesson::isAvailable).collect(Collectors.toList());
-
-        if (!"All".equals(timeFilter)) {
-            lessons = lessons.stream()
-                    .filter(l -> l.getTimeSlot().getDisplayName().equals(timeFilter))
-                    .collect(Collectors.toList());
+        if (selectedWeek instanceof Integer) {
+            int week = (Integer) selectedWeek;
+            lessons = timetable.getLessonsByWeekAndDay(week, day);
+            statusLabel.setText(String.format("Showing %d lesson(s) for %s in Week %d.",
+                    lessons.size(), day.getDisplayName(), week));
+        } else {
+            lessons = bookingSystem.searchTimetableByDay(day);
+            statusLabel.setText(String.format("Showing %d %s lesson(s) across the full timetable.",
+                    lessons.size(), day.getDisplayName()));
         }
 
+        tableModel.setLessons(sortLessons(lessons));
+    }
+
+    private void searchByExercise() {
+        ExerciseType type = (ExerciseType) exerciseCombo.getSelectedItem();
+        List<Lesson> lessons = sortLessons(bookingSystem.searchTimetableByExercise(type));
         tableModel.setLessons(lessons);
-        statusLabel.setText(String.format("\u2705 Found %d available lesson(s).", lessons.size()));
+        statusLabel.setText(String.format("Showing %d '%s' lesson(s) across the full timetable.",
+                lessons.size(), type.getDisplayName()));
+    }
+
+    private List<Lesson> sortLessons(List<Lesson> lessons) {
+        return lessons.stream()
+                .sorted(Comparator.comparingInt(Lesson::getWeekNumber)
+                        .thenComparing(lesson -> lesson.getDay().ordinal())
+                        .thenComparing(lesson -> lesson.getTimeSlot().ordinal()))
+                .collect(Collectors.toList());
     }
 
     private void bookSelectedLesson() {
@@ -175,14 +216,15 @@ public class BookingPanel extends JPanel {
         try {
             bookingSystem.bookLesson(member, lesson);
             JOptionPane.showMessageDialog(this,
-                    String.format("Successfully booked %s into %s (%s - %s %s, Week %d)!",
-                            member.getName(), lesson.getLessonId(),
+                    String.format("Successfully booked %s into %s (%s - %s %s, Week %d).",
+                            member.getName(),
+                            lesson.getLessonId(),
                             lesson.getExerciseType().getDisplayName(),
                             lesson.getDay().getDisplayName(),
                             lesson.getTimeSlot().getDisplayName(),
                             lesson.getWeekNumber()),
                     "Booking Successful", JOptionPane.INFORMATION_MESSAGE);
-            searchAvailableLessons(); // refresh
+            tableModel.fireTableRowsUpdated(modelRow, modelRow);
         } catch (LessonFullException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(),
                     "Lesson Full", JOptionPane.ERROR_MESSAGE);
@@ -192,14 +234,11 @@ public class BookingPanel extends JPanel {
         }
     }
 
-    /**
-     * Table model for available lessons.
-     */
     static class LessonTableModel extends AbstractTableModel {
-
         private static final String[] COLUMNS = {
-                "Lesson ID", "Exercise", "Day", "Time", "Week", "Spaces Left", "Price"
+                "Lesson ID", "Week", "Day", "Time", "Exercise", "Spaces Left", "Price", "Status"
         };
+
         private final DecimalFormat df = new DecimalFormat("0.00");
         private List<Lesson> lessons = new ArrayList<>();
 
@@ -220,22 +259,24 @@ public class BookingPanel extends JPanel {
 
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
-            Lesson l = lessons.get(rowIndex);
+            Lesson lesson = lessons.get(rowIndex);
             switch (columnIndex) {
                 case 0:
-                    return l.getLessonId();
+                    return lesson.getLessonId();
                 case 1:
-                    return l.getExerciseType().getDisplayName();
+                    return lesson.getWeekNumber();
                 case 2:
-                    return l.getDay().getDisplayName();
+                    return lesson.getDay().getDisplayName();
                 case 3:
-                    return l.getTimeSlot().getDisplayName();
+                    return lesson.getTimeSlot().getDisplayName();
                 case 4:
-                    return l.getWeekNumber();
+                    return lesson.getExerciseType().getDisplayName();
                 case 5:
-                    return l.getAvailableSpaces();
+                    return lesson.getAvailableSpaces();
                 case 6:
-                    return "\u00A3" + df.format(l.getExerciseType().getPrice());
+                    return "\u00A3" + df.format(lesson.getExerciseType().getPrice());
+                case 7:
+                    return lesson.isAvailable() ? "Available" : "Full";
                 default:
                     return "";
             }
@@ -248,13 +289,14 @@ public class BookingPanel extends JPanel {
 
         @Override
         public Class<?> getColumnClass(int columnIndex) {
-            if (columnIndex == 4 || columnIndex == 5)
+            if (columnIndex == 1 || columnIndex == 5) {
                 return Integer.class;
+            }
             return String.class;
         }
 
         public void setLessons(List<Lesson> lessons) {
-            this.lessons = lessons;
+            this.lessons = new ArrayList<>(lessons);
             fireTableDataChanged();
         }
 

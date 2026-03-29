@@ -13,7 +13,7 @@ public class Booking {
 
     private final String bookingId;
     private final Member member;
-    private final Lesson lesson;
+    private Lesson lesson;
     private BookingStatus status;
     private final LocalDateTime bookedAt;
 
@@ -52,9 +52,19 @@ public class Booking {
      * Marks this booking as attended.
      */
     public void markAttended() {
-        if (status == BookingStatus.BOOKED) {
+        if (status == BookingStatus.BOOKED || status == BookingStatus.CHANGED) {
             status = BookingStatus.ATTENDED;
         }
+    }
+
+    /**
+     * Moves this booking to a new lesson while keeping the same booking ID.
+     *
+     * @param newLesson the replacement lesson
+     */
+    public void changeLesson(Lesson newLesson) {
+        this.lesson = Objects.requireNonNull(newLesson, "newLesson cannot be null");
+        status = BookingStatus.CHANGED;
     }
 
     /**

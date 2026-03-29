@@ -8,6 +8,8 @@ package com.flc.model;
 public enum BookingStatus {
     /** Member has booked the lesson but hasn't attended yet. */
     BOOKED("Booked"),
+    /** Booking has been moved to a different lesson but not yet attended. */
+    CHANGED("Changed"),
     /** Member has attended the lesson. */
     ATTENDED("Attended"),
     /** Booking was cancelled. */

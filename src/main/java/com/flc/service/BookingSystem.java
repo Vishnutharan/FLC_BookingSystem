@@ -4,6 +4,7 @@ import com.flc.exception.InvalidRatingException;
 import com.flc.exception.LessonFullException;
 import com.flc.exception.MemberNotFoundException;
 import com.flc.exception.TimeConflictException;
+import com.flc.model.BookingStatus;
 import com.flc.model.DayOfWeek;
 import com.flc.model.ExerciseType;
 import com.flc.model.Lesson;
@@ -115,6 +116,32 @@ public class BookingSystem {
     }
 
     /**
+     * Marks a lesson as attended and immediately records the required review.
+     *
+     * @param member reviewing member
+     * @param lesson attended lesson
+     * @param rating rating 1-5
+     * @param comment review text
+     * @return created review
+     * @throws InvalidRatingException if rating invalid
+     */
+    public Review attendLessonWithReview(Member member, Lesson lesson, int rating, String comment)
+            throws InvalidRatingException {
+        String trimmedComment = comment == null ? "" : comment.trim();
+        BookingStatus status = member.getBookingStatus(lesson);
+
+        if (status != com.flc.model.BookingStatus.BOOKED && status != com.flc.model.BookingStatus.CHANGED) {
+            throw new IllegalStateException("Only booked or changed lessons can be attended with a review.");
+        }
+        if (trimmedComment.isEmpty()) {
+            throw new IllegalArgumentException("Review comment cannot be empty.");
+        }
+
+        bookingManager.markAttendance(member, lesson);
+        return addReview(member, lesson, rating, trimmedComment);
+    }
+
+    /**
      * Adds a review for an attended booking.
      *
      * @param member reviewing member
@@ -211,7 +238,7 @@ public class BookingSystem {
         return generateAttendanceReportForWeeks(
                 range[0],
                 range[1],
-                String.format("ATTENDANCE AND RATING REPORT (Cycle %d: Weeks %d-%d)",
+                String.format("MONTHLY LESSON REPORT (Month %02d: Weeks %d-%d)",
                         cycleNumber,
                         range[0],
                         range[1]));
@@ -228,7 +255,7 @@ public class BookingSystem {
         return generateIncomeReportForWeeks(
                 range[0],
                 range[1],
-                String.format("INCOME REPORT BY EXERCISE TYPE (Cycle %d: Weeks %d-%d)",
+                String.format("MONTHLY CHAMPION EXERCISE TYPE REPORT (Month %02d: Weeks %d-%d)",
                         cycleNumber,
                         range[0],
                         range[1]));
@@ -392,45 +419,45 @@ public class BookingSystem {
         sb.append("     ").append(title).append("\n");
         sb.append("     Furzefield Leisure Centre\n");
         sb.append("==========================================================\n\n");
-        sb.append(String.format("%-14s %-12s %-12s %-10s %-7s %-9s %-8s %-11s\n",
+        sb.append(String.format("%-14s %-12s %-12s %-10s %-9s %-9s %-8s %-11s\n",
                 "Lesson ID",
                 "Exercise",
                 "Week/Day",
                 "Time",
-                "Booked",
                 "Attended",
+                "Pending",
                 "Reviews",
                 "Avg Rating"));
         sb.append("-----------------------------------------------------------------------------------\n");
 
-        int totalBookings = 0;
         int totalAttendance = 0;
+        int totalPending = 0;
         for (Lesson lesson : lessons) {
-            int bookedCount = lesson.getBookedMembers().size();
             int attendedCount = getAttendedCount(lesson);
+            int pendingCount = Math.max(lesson.getBookedMembers().size() - attendedCount, 0);
             int reviewCount = lesson.getReviews().size();
-            totalBookings += bookedCount;
             totalAttendance += attendedCount;
+            totalPending += pendingCount;
             String avgRating = lesson.getAverageRating() == 0.0
                     ? "N/A"
                     : df.format(lesson.getAverageRating());
 
-            sb.append(String.format("%-14s %-12s W%-2d %-9s %-10s %-7d %-9d %-8d %-11s\n",
+            sb.append(String.format("%-14s %-12s W%-2d %-9s %-10s %-9d %-9d %-8d %-11s\n",
                     lesson.getLessonId(),
                     lesson.getExerciseType().getDisplayName(),
                     lesson.getWeekNumber(),
                     lesson.getDay().getDisplayName(),
                     lesson.getTimeSlot().getDisplayName(),
-                    bookedCount,
                     attendedCount,
+                    pendingCount,
                     reviewCount,
                     avgRating));
         }
 
         sb.append("-----------------------------------------------------------------------------------\n");
         sb.append(String.format("Total Lessons: %d\n", lessons.size()));
-        sb.append(String.format("Total Bookings: %d\n", totalBookings));
-        sb.append(String.format("Total Attended: %d\n", totalAttendance));
+        sb.append(String.format("Total Attended Members: %d\n", totalAttendance));
+        sb.append(String.format("Total Pending Members: %d\n", totalPending));
         return sb.toString();
     }
 

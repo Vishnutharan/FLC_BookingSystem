@@ -3,6 +3,8 @@ package com.flc;
 import com.flc.exception.InvalidRatingException;
 import com.flc.exception.LessonFullException;
 import com.flc.exception.TimeConflictException;
+import com.flc.model.Booking;
+import com.flc.model.BookingStatus;
 import com.flc.model.DayOfWeek;
 import com.flc.model.ExerciseType;
 import com.flc.model.Lesson;
@@ -84,15 +86,20 @@ public class BookingSystemTest {
         Lesson newLesson = system.getTimetable().getLessonById("L-W4-SUN-PM");
 
         system.bookLesson(testMember, oldLesson);
+        Booking originalBooking = testMember.getActiveBookingForLesson(oldLesson);
         int oldBefore = oldLesson.getBookedMembers().size();
         int newBefore = newLesson.getBookedMembers().size();
 
         system.changeBooking(testMember, oldLesson, newLesson);
+        Booking changedBooking = testMember.getActiveBookingForLesson(newLesson);
 
         assertFalse(testMember.getBookedLessons().contains(oldLesson));
         assertTrue(testMember.getBookedLessons().contains(newLesson));
         assertEquals(oldBefore - 1, oldLesson.getBookedMembers().size());
         assertEquals(newBefore + 1, newLesson.getBookedMembers().size());
+        assertNotNull(changedBooking);
+        assertEquals(originalBooking.getBookingId(), changedBooking.getBookingId());
+        assertEquals(BookingStatus.CHANGED, changedBooking.getStatus());
     }
 
     @Test
@@ -115,15 +122,14 @@ public class BookingSystemTest {
         Lesson lesson = system.getTimetable().getLessonById("L-W4-SUN-AM");
 
         system.bookLesson(testMember, lesson);
-        system.attendLesson(testMember, lesson);
-
-        Review review = system.addReview(testMember, lesson, 4, "Great instruction and pacing.");
+        Review review = system.attendLessonWithReview(testMember, lesson, 4, "Great instruction and pacing.");
 
         assertNotNull(review);
         assertEquals(4, review.getRating());
         assertEquals("Great instruction and pacing.", review.getComment());
         assertTrue(system.getReviews().contains(review));
         assertTrue(lesson.getReviews().contains(review));
+        assertEquals(BookingStatus.ATTENDED, testMember.getBookingStatus(lesson));
     }
 
     @Test
@@ -165,6 +171,7 @@ public class BookingSystemTest {
 
         assertTrue(cycle1Report.contains("L-W1-SAT-AM"));
         assertTrue(cycle1Report.contains("4.25"));
+        assertTrue(cycle1Report.contains("Total Attended Members"));
     }
 
     @Test
@@ -206,11 +213,35 @@ public class BookingSystemTest {
     void testDuplicateReviewRejected() throws LessonFullException, TimeConflictException, InvalidRatingException {
         Lesson lesson = system.getTimetable().getLessonById("L-W6-SUN-AM");
         system.bookLesson(testMember, lesson);
-        system.attendLesson(testMember, lesson);
-
-        assertDoesNotThrow(() -> system.addReview(testMember, lesson, 5, "Excellent class."));
+        assertDoesNotThrow(() -> system.attendLessonWithReview(testMember, lesson, 5, "Excellent class."));
         assertThrows(IllegalStateException.class,
                 () -> system.addReview(testMember, lesson, 4, "Second review should fail."));
+    }
+
+    @Test
+    @DisplayName("Changed booking can still be cancelled and attended")
+    void testChangedBooking_RemainsActionable() throws LessonFullException, TimeConflictException, InvalidRatingException {
+        Lesson originalLesson = system.getTimetable().getLessonById("L-W7-SAT-AM");
+        Lesson changedLesson = system.getTimetable().getLessonById("L-W7-SAT-PM");
+
+        system.bookLesson(testMember, originalLesson);
+        system.changeBooking(testMember, originalLesson, changedLesson);
+
+        Booking changedBooking = testMember.getActiveBookingForLesson(changedLesson);
+        assertNotNull(changedBooking);
+        assertEquals(BookingStatus.CHANGED, changedBooking.getStatus());
+
+        assertDoesNotThrow(() -> system.attendLessonWithReview(testMember, changedLesson, 5, "Great changed class."));
+        assertEquals(BookingStatus.ATTENDED, testMember.getBookingStatus(changedLesson));
+
+        Lesson cancelOriginal = system.getTimetable().getLessonById("L-W8-SAT-AM");
+        Lesson cancelReplacement = system.getTimetable().getLessonById("L-W8-SAT-PM");
+        system.bookLesson(testMember, cancelOriginal);
+        system.changeBooking(testMember, cancelOriginal, cancelReplacement);
+        system.cancelBooking(testMember, cancelReplacement);
+
+        assertEquals(BookingStatus.CANCELLED, testMember.getBookingStatus(cancelReplacement));
+        assertFalse(testMember.getBookedLessons().contains(cancelReplacement));
     }
 
     @Test
