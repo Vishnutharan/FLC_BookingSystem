@@ -2,6 +2,42 @@
 
 Self-contained Java Swing booking application for weekend group exercise lessons.
 
+## Tech stack
+
+- Java 11+ (compiled with `source`/`target` 11), Swing GUI
+- Maven build, JUnit 5 (Jupiter 5.9.3) tests
+
+## Project structure
+
+```text
+FLC_BookingSystem/
+├── docs/
+├── src/
+│   ├── main/
+│   │   └── java/
+│   │       └── com/
+│   └── test/
+│       └── java/
+│           └── com/
+├── .editorconfig
+├── .gitignore
+├── pom.xml
+└── README.md
+```
+
+| Package | Purpose |
+| --- | --- |
+| `com.flc` | `Main` entry point (GUI, or `--console` report mode) |
+| `com.flc.model` | Domain entities (`Member`, `Lesson`, `Booking`, `Review`, enums) |
+| `com.flc.service` | `BookingSystem`, `BookingManager` (singleton), `Timetable`, `DataInitializer` (seed data) |
+| `com.flc.gui` | Swing panels and theme |
+| `com.flc.exception` | Domain exceptions |
+
+## Prerequisites
+
+- JDK 11 or newer (a full JDK, not only a JRE)
+- Maven 3.6+ (for the Maven build)
+
 ## Requirement Coverage
 
 - 10 pre-registered members (`M01` to `M10`)
@@ -62,6 +98,8 @@ java -cp target/classes com.flc.Main --console
 This prints the assignment requirement audit plus both 4-week cycle reports to `System.out`.
 
 ### Option 2 (No Maven, using JDK tools)
+
+`sources-main.txt` / `sources-test.txt` are not committed; create them first, e.g. `find src/main/java -name "*.java" > sources-main.txt` (Linux/macOS) or `dir /s /b src\main\java\*.java > sources-main.txt` (Windows).
 
 ```bash
 # Compile main sources
