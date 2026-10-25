@@ -18,3 +18,12 @@ Thumbs.db
 # Package files
 *.jar
 !target/FLC_BookingSystem.jar
+
+# Logs and run output
+*.log
+stderr.txt
+
+# Manual javac output folders
+out/
+out-main/
+out-test/
